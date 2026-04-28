@@ -1,0 +1,72 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/*
+ * Lume design tokens.
+ * Colors are HSL triplets (no alpha) so Tailwind utilities can layer
+ * opacity via the `<alpha-value>` substitution in tailwind.config.ts.
+ *
+ * Lime accent: #b9ff66 -> hsl(85 100% 70%)
+ * Background:  #0a0e0d -> hsl(168 16% 5%)
+ */
+
+@layer base {
+  :root.dark,
+  :root {
+    --background: 168 16% 5%;
+    --foreground: 150 16% 96%;
+
+    --card: 168 14% 8%;
+    --card-foreground: 150 16% 96%;
+
+    --muted: 168 12% 12%;
+    --muted-foreground: 150 6% 64%;
+
+    --primary: 85 100% 70%;
+    --primary-foreground: 168 30% 8%;
+
+    --accent: 168 14% 14%;
+    --accent-foreground: 150 16% 96%;
+
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 150 16% 96%;
+
+    --border: 168 12% 16%;
+    --ring: 85 100% 70%;
+
+    --radius: 0.75rem;
+  }
+
+  * {
+    border-color: hsl(var(--border));
+  }
+
+  html,
+  body,
+  #root {
+    height: 100%;
+  }
+
+  body {
+    background-color: hsl(var(--background));
+    color: hsl(var(--foreground));
+    font-feature-settings: 'cv02', 'cv03', 'cv04', 'cv11';
+  }
+
+  /* Subtle scrollbar styling that matches the dark palette. */
+  ::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: hsl(var(--border));
+    border-radius: 8px;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: hsl(var(--muted-foreground));
+  }
+}
