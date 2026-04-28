@@ -2,7 +2,7 @@
 
 > Premium remote access for the AI era. Browser-first, privacy-first, multi-technician native.
 
-Lume is a TypeScript monorepo orchestrated with Turborepo and pnpm workspaces. This repository is at **Phase 1 — Foundations**: the goal is a working browser-to-browser remote screen-sharing session backed by a NestJS API, a Socket.io signaling service, and a shared WebRTC SDK.
+Lume is a TypeScript monorepo orchestrated with Turborepo and pnpm workspaces. This repository is at **Phase 1, Foundations**: the goal is a working browser-to-browser remote screen-sharing session backed by a NestJS API, a Socket.io signaling service, and a shared WebRTC SDK.
 
 Differentiators (full product, multi-phase): AI Copilot during the session, Whisper mode (ghost cursor), indexed and searchable recordings, install-free browser join, native multi-technician, privacy-first defaults, automation marketplace.
 

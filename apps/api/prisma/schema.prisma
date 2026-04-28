@@ -1,0 +1,74 @@
+// Lume — Prisma schema (Phase 1)
+// All comments here are reference for engineers. They never reach the wire.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Plan {
+  FREE
+  PRO
+  TEAM
+  ENTERPRISE
+}
+
+enum SessionStatus {
+  PENDING
+  ACTIVE
+  ENDED
+  CANCELLED
+}
+
+model User {
+  id             String        @id @default(cuid())
+  email          String        @unique
+  name           String?
+  avatarUrl      String?
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+  organizationId String?
+  organization   Organization? @relation(fields: [organizationId], references: [id], onDelete: SetNull)
+  sessions       Session[]
+
+  @@index([organizationId])
+}
+
+model Organization {
+  id        String    @id @default(cuid())
+  name      String
+  slug      String    @unique
+  plan      Plan      @default(FREE)
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  users     User[]
+  sessions  Session[]
+}
+
+model Session {
+  id             String        @id @default(cuid())
+  // Five-character non-ambiguous code. See packages/shared/src/session-code.ts
+  // for the alphabet. Indexed because we resolve sessions by code on the
+  // public client-web endpoint.
+  code           String        @unique
+  status         SessionStatus @default(PENDING)
+  hostUserId     String
+  hostUser       User          @relation(fields: [hostUserId], references: [id], onDelete: Cascade)
+  organizationId String?
+  organization   Organization? @relation(fields: [organizationId], references: [id], onDelete: SetNull)
+  clientName     String?
+  startedAt      DateTime?
+  endedAt        DateTime?
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+  // Free-form environment metadata about the customer (OS, screen, etc).
+  metadata       Json?
+
+  @@index([hostUserId])
+  @@index([organizationId])
+  @@index([status, createdAt])
+}

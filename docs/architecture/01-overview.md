@@ -1,4 +1,4 @@
-# Lume — Architectural overview (Phase 1)
+# Lume: Architectural overview (Phase 1)
 
 > Status: **draft, evolves with each phase**
 > Audience: contributors and reviewers
@@ -37,14 +37,14 @@ Lume is a browser-first remote access platform for professional technicians. A t
 └──────────────────────┘         └──────────────────────┘
 ```
 
-- **`apps/api`** — REST + auth + persistence. Mints session codes, issues short-lived JWTs that the signaling service trusts.
-- **`services/signaling`** — Stateless Socket.io relay for SDP and ICE candidates plus control events. Stateless on purpose: any signaling instance can serve any session given a valid JWT, which makes horizontal scale trivial.
-- **`apps/web`** — Technician panel. Authenticated via magic link + JWT. Hosts the WebRTC peer that consumes the customer stream.
-- **`apps/client-web`** — Public end-customer page. No login. Validates the session code, requests `getDisplayMedia`, opens the WebRTC peer.
-- **`packages/webrtc`** — Browser WebRTC wrapper exposing `LumeHost` and `LumeClient` classes with a typed event emitter, ICE failure handling, automatic reconnection and bitrate adaptation.
-- **`packages/protocol`** — Single source of truth for every wire-level message (Zod schemas + inferred TypeScript types). Used by the API, the signaling service, and both frontends.
-- **`packages/shared`** — Tiny utilities and shared validators (e.g. session code grammar).
-- **`packages/ui`** — Design system on top of Radix and shadcn/ui, themed for the Lume look (lime accent on near-black background).
+- **`apps/api`**: REST + auth + persistence. Mints session codes, issues short-lived JWTs that the signaling service trusts.
+- **`services/signaling`**: Stateless Socket.io relay for SDP and ICE candidates plus control events. Stateless on purpose: any signaling instance can serve any session given a valid JWT, which makes horizontal scale trivial.
+- **`apps/web`**: Technician panel. Authenticated via magic link + JWT. Hosts the WebRTC peer that consumes the customer stream.
+- **`apps/client-web`**: Public end-customer page. No login. Validates the session code, requests `getDisplayMedia`, opens the WebRTC peer.
+- **`packages/webrtc`**: Browser WebRTC wrapper exposing `LumeHost` and `LumeClient` classes with a typed event emitter, ICE failure handling, automatic reconnection and bitrate adaptation.
+- **`packages/protocol`**: Single source of truth for every wire-level message (Zod schemas + inferred TypeScript types). Used by the API, the signaling service, and both frontends.
+- **`packages/shared`**: Tiny utilities and shared validators (e.g. session code grammar).
+- **`packages/ui`**: Design system on top of Radix and shadcn/ui, themed for the Lume look (lime accent on near-black background).
 
 ---
 
@@ -60,7 +60,7 @@ Lume is a browser-first remote access platform for professional technicians. A t
 | 6   | **WebRTC native, no SFU yet**                                          | Phase 1 is 1:1. An SFU (mediasoup, LiveKit) joins in Phase 2 when multi-technician becomes a hard requirement.    |
 | 7   | **Resend for email**                                                   | Modern API, react-email integration, low friction for magic links.                                                |
 | 8   | **Cloudflare Calls TURN (planned), coturn local**                      | Anycast TURN with predictable per-GB pricing, no ops overhead. coturn covers self-hosted edition (Phase 4).       |
-| 9   | **Hetzner compute, Cloudflare R2 storage**                             | 5–8× cheaper than AWS for our profile, R2 has zero egress fees which is decisive for video recordings (Phase 3).  |
+| 9   | **Hetzner compute, Cloudflare R2 storage**                             | 5-8x cheaper than AWS for our profile, R2 has zero egress fees which is decisive for video recordings (Phase 3).  |
 | 10  | **5-character session code, alphabet ABCDEFGHJKMNPQRSTUVWXYZ23456789** | 32 unambiguous characters → 32⁵ ≈ 33.5M codes. Excludes 0/O, 1/I/L for readability over voice and screen capture. |
 
 ---
