@@ -1,0 +1,70 @@
+# Dependencies
+node_modules/
+.pnpm-store/
+
+# Build outputs
+dist/
+build/
+out/
+.next/
+.nuxt/
+.svelte-kit/
+.vinxi/
+.output/
+.turbo/
+*.tsbuildinfo
+
+# Tests / coverage
+coverage/
+.nyc_output/
+*.lcov
+
+# Environment files
+.env
+.env.local
+.env.*.local
+.env.development
+.env.production
+!.env.example
+
+# Editors / OS
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.shared.json
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+pnpm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Caches
+.cache/
+.eslintcache
+.parcel-cache/
+.stylelintcache
+
+# Prisma
+**/prisma/migrations/.tmp/
+
+# Misc local artifacts
+*.local
+.tmp/
+tmp/
+.DS_Store
+
+# Tauri (future phase 2)
+**/src-tauri/target/
+**/src-tauri/gen/
+
+# Docker volumes (named volumes are managed by docker)
+infrastructure/docker/data/
