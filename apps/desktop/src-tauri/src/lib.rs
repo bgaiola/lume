@@ -1,9 +1,11 @@
 //! Lume desktop entry point.
 //!
 //! Phase 2 Block 1 delivered the Tauri shell hosting apps/web. Block 2
-//! added native screen capture. Block 3 adds native mouse and keyboard
-//! simulation. Multi-monitor, packaging and auto-update land in
-//! subsequent blocks (see docs/architecture/02-phase-2-backlog.md).
+//! added native screen capture. Block 3 added native mouse and keyboard
+//! simulation. Block 4 adds window-level capture and the desktop bounds
+//! helper for multi-monitor coordinate mapping. Packaging and
+//! auto-update land in subsequent blocks (see
+//! docs/architecture/02-phase-2-backlog.md).
 
 pub mod capture;
 pub mod input;
@@ -13,10 +15,12 @@ use std::path::PathBuf;
 use tauri::Manager;
 
 use capture::{
-    capture_display_to_file as native_capture,
+    capture_display_to_file as native_capture_display,
+    capture_window_to_file as native_capture_window,
     check_permission as native_check_capture_permission,
-    list_displays as native_list_displays, CaptureError, CapturePermission, CapturedFrame,
-    DisplayInfo,
+    desktop_bounds as native_desktop_bounds, list_displays as native_list_displays,
+    list_windows as native_list_windows, CaptureError, CapturePermission, CapturedFrame,
+    DesktopBounds, DisplayInfo, WindowInfo,
 };
 use input::{
     check_permission as native_check_input_permission, key as native_key,
@@ -33,7 +37,10 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             ping,
             list_displays,
+            list_windows,
             capture_display,
+            capture_window,
+            desktop_bounds,
             check_capture_permission,
             input_move_mouse,
             input_mouse_button,
@@ -61,21 +68,44 @@ fn list_displays() -> Result<Vec<DisplayInfo>, CaptureError> {
 }
 
 #[tauri::command]
+fn list_windows() -> Result<Vec<WindowInfo>, CaptureError> {
+    native_list_windows()
+}
+
+#[tauri::command]
 fn capture_display(
     app: tauri::AppHandle,
     display_id: u32,
 ) -> Result<CapturedFrame, CaptureError> {
-    let cache_dir: PathBuf = app
-        .path()
-        .app_cache_dir()
-        .map_err(|e| CaptureError::Native(format!("app_cache_dir: {e}")))?;
-    let captures_dir = cache_dir.join("captures");
-    native_capture(display_id, captures_dir)
+    let captures_dir = captures_directory(&app)?;
+    native_capture_display(display_id, captures_dir)
+}
+
+#[tauri::command]
+fn capture_window(
+    app: tauri::AppHandle,
+    window_id: u32,
+) -> Result<CapturedFrame, CaptureError> {
+    let captures_dir = captures_directory(&app)?;
+    native_capture_window(window_id, captures_dir)
+}
+
+#[tauri::command]
+fn desktop_bounds() -> Result<DesktopBounds, CaptureError> {
+    native_desktop_bounds()
 }
 
 #[tauri::command]
 fn check_capture_permission() -> CapturePermission {
     native_check_capture_permission()
+}
+
+fn captures_directory(app: &tauri::AppHandle) -> Result<PathBuf, CaptureError> {
+    let cache_dir = app
+        .path()
+        .app_cache_dir()
+        .map_err(|e| CaptureError::Native(format!("app_cache_dir: {e}")))?;
+    Ok(cache_dir.join("captures"))
 }
 
 /* ---------------------------- Input commands ---------------------------- */

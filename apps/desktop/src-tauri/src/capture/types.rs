@@ -23,7 +23,10 @@ pub struct DisplayInfo {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct CapturedFrame {
-    pub display_id: u32,
+    /// `Some(id)` when the frame came from `capture_display`, `None` for
+    /// `capture_window` (which is identified by `window_id` instead).
+    pub display_id: Option<u32>,
+    pub window_id: Option<u32>,
     pub width: u32,
     pub height: u32,
     /// Absolute path on disk. The renderer can render via `convertFileSrc`.
@@ -31,6 +34,46 @@ pub struct CapturedFrame {
     /// Bytes written to disk. Useful for client-side sanity checks.
     pub size_bytes: u64,
     pub captured_at: String,
+}
+
+/// Information about a single user-visible window on the host. Returned
+/// by `list_windows` so the renderer can render a picker that lets the
+/// customer share a specific app rather than the entire screen.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct WindowInfo {
+    pub id: u32,
+    /// Application or process name. May be empty on Linux Wayland when
+    /// the compositor refuses to expose it.
+    pub app_name: String,
+    pub title: String,
+    /// Logical position in the virtual desktop space (in unscaled px).
+    pub x: i32,
+    pub y: i32,
+    pub width: u32,
+    pub height: u32,
+    /// Monitor id this window currently sits on, when the OS exposes it.
+    pub current_display_id: Option<u32>,
+    pub is_minimized: bool,
+    pub is_maximized: bool,
+    pub is_focused: bool,
+}
+
+/// Bounding rectangle of the entire virtual desktop, i.e. the union of
+/// every display's bounds. Coords are top-left origin in unscaled
+/// pixels, matching what `move_mouse_absolute` consumes.
+#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DesktopBounds {
+    pub min_x: i32,
+    pub min_y: i32,
+    pub max_x: i32,
+    pub max_y: i32,
+    /// Width of the bounding rect (`max_x - min_x`).
+    pub width: u32,
+    /// Height of the bounding rect (`max_y - min_y`).
+    pub height: u32,
+    pub display_count: u32,
 }
 
 /// Outcome of a permission probe. macOS gates Screen Recording behind
@@ -51,6 +94,8 @@ pub enum CapturePermission {
 pub enum CaptureError {
     #[error("display {0} not found")]
     DisplayNotFound(u32),
+    #[error("window {0} not found")]
+    WindowNotFound(u32),
     #[error("screen recording permission denied")]
     PermissionDenied,
     #[error("native capture failed: {0}")]
@@ -63,6 +108,7 @@ impl serde::Serialize for CaptureError {
     fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         let kind = match self {
             CaptureError::DisplayNotFound(_) => "displayNotFound",
+            CaptureError::WindowNotFound(_) => "windowNotFound",
             CaptureError::PermissionDenied => "permissionDenied",
             CaptureError::Native(_) => "native",
             CaptureError::Io(_) => "io",

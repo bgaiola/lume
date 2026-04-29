@@ -7,5 +7,10 @@
 mod platform;
 mod types;
 
-pub use platform::{capture_display_to_file, check_permission, list_displays};
-pub use types::{CaptureError, CapturePermission, CapturedFrame, DisplayInfo};
+pub use platform::{
+    capture_display_to_file, capture_window_to_file, check_permission, desktop_bounds,
+    list_displays, list_windows,
+};
+pub use types::{
+    CaptureError, CapturePermission, CapturedFrame, DesktopBounds, DisplayInfo, WindowInfo,
+};

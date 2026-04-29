@@ -15,9 +15,11 @@ use std::path::PathBuf;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use image::{ImageBuffer, Rgba};
-use xcap::Monitor;
+use xcap::{Monitor, Window};
 
-use super::types::{CaptureError, CapturePermission, CapturedFrame, DisplayInfo};
+use super::types::{
+    CaptureError, CapturePermission, CapturedFrame, DesktopBounds, DisplayInfo, WindowInfo,
+};
 
 /// Enumerate every display reachable by the OS.
 pub fn list_displays() -> Result<Vec<DisplayInfo>, CaptureError> {
@@ -63,6 +65,118 @@ pub fn capture_display_to_file(
         .capture_image()
         .map_err(|e| CaptureError::Native(e.to_string()))?;
 
+    let label = format!("display-{display_id}");
+    write_capture(rgba, output_dir, &label, Some(display_id), None)
+}
+
+/// Enumerate every user-visible window on the host. Minimised, hidden
+/// or off-screen windows are still listed; the renderer should filter
+/// them out for the picker UX.
+pub fn list_windows() -> Result<Vec<WindowInfo>, CaptureError> {
+    let windows = Window::all().map_err(|e| CaptureError::Native(e.to_string()))?;
+    windows
+        .into_iter()
+        .map(|w| {
+            let current_display_id = w
+                .current_monitor()
+                .ok()
+                .and_then(|m| m.id().ok());
+            Ok(WindowInfo {
+                id: w.id().map_err(|e| CaptureError::Native(e.to_string()))?,
+                app_name: w.app_name().map_err(|e| CaptureError::Native(e.to_string()))?,
+                title: w.title().map_err(|e| CaptureError::Native(e.to_string()))?,
+                x: w.x().map_err(|e| CaptureError::Native(e.to_string()))?,
+                y: w.y().map_err(|e| CaptureError::Native(e.to_string()))?,
+                width: w.width().map_err(|e| CaptureError::Native(e.to_string()))?,
+                height: w.height().map_err(|e| CaptureError::Native(e.to_string()))?,
+                current_display_id,
+                is_minimized: w
+                    .is_minimized()
+                    .map_err(|e| CaptureError::Native(e.to_string()))?,
+                is_maximized: w
+                    .is_maximized()
+                    .map_err(|e| CaptureError::Native(e.to_string()))?,
+                is_focused: w.is_focused().map_err(|e| CaptureError::Native(e.to_string()))?,
+            })
+        })
+        .collect()
+}
+
+/// Capture a single window by its OS-assigned id and write it to
+/// `output_dir` as PNG.
+pub fn capture_window_to_file(
+    window_id: u32,
+    output_dir: PathBuf,
+) -> Result<CapturedFrame, CaptureError> {
+    let windows = Window::all().map_err(|e| CaptureError::Native(e.to_string()))?;
+    let window = windows
+        .into_iter()
+        .find(|w| w.id().map(|id| id == window_id).unwrap_or(false))
+        .ok_or(CaptureError::WindowNotFound(window_id))?;
+
+    let rgba = window
+        .capture_image()
+        .map_err(|e| CaptureError::Native(e.to_string()))?;
+
+    let label = format!("window-{window_id}");
+    write_capture(rgba, output_dir, &label, None, Some(window_id))
+}
+
+/// Compute the union rectangle of every display in the virtual desktop.
+/// Used by the renderer to map streamed-video pixel coordinates onto
+/// global mouse coordinates when the technician issues input events.
+pub fn desktop_bounds() -> Result<DesktopBounds, CaptureError> {
+    let monitors = Monitor::all().map_err(|e| CaptureError::Native(e.to_string()))?;
+    if monitors.is_empty() {
+        return Err(CaptureError::Native("no displays detected".into()));
+    }
+    let mut min_x = i32::MAX;
+    let mut min_y = i32::MAX;
+    let mut max_x = i32::MIN;
+    let mut max_y = i32::MIN;
+    for monitor in &monitors {
+        let x = monitor.x().map_err(|e| CaptureError::Native(e.to_string()))?;
+        let y = monitor.y().map_err(|e| CaptureError::Native(e.to_string()))?;
+        let w = monitor
+            .width()
+            .map_err(|e| CaptureError::Native(e.to_string()))? as i32;
+        let h = monitor
+            .height()
+            .map_err(|e| CaptureError::Native(e.to_string()))? as i32;
+        if x < min_x {
+            min_x = x;
+        }
+        if y < min_y {
+            min_y = y;
+        }
+        if x + w > max_x {
+            max_x = x + w;
+        }
+        if y + h > max_y {
+            max_y = y + h;
+        }
+    }
+    Ok(DesktopBounds {
+        min_x,
+        min_y,
+        max_x,
+        max_y,
+        width: (max_x - min_x).max(0) as u32,
+        height: (max_y - min_y).max(0) as u32,
+        display_count: monitors.len() as u32,
+    })
+}
+
+/// Internal helper shared by `capture_display_to_file` and
+/// `capture_window_to_file`. Encodes the RGBA buffer as PNG, writes it
+/// to disk, and constructs the metadata envelope.
+fn write_capture(
+    rgba: image::RgbaImage,
+    output_dir: PathBuf,
+    label: &str,
+    display_id: Option<u32>,
+    window_id: Option<u32>,
+) -> Result<CapturedFrame, CaptureError> {
     let width = rgba.width();
     let height = rgba.height();
     let buffer: ImageBuffer<Rgba<u8>, _> =
@@ -79,12 +193,13 @@ pub fn capture_display_to_file(
         .duration_since(UNIX_EPOCH)
         .unwrap_or_default()
         .as_millis();
-    let filename = format!("lume-capture-{display_id}-{timestamp}.png");
+    let filename = format!("lume-capture-{label}-{timestamp}.png");
     let path = output_dir.join(filename);
     std::fs::write(&path, &bytes)?;
 
     Ok(CapturedFrame {
         display_id,
+        window_id,
         width,
         height,
         path: path.to_string_lossy().into_owned(),
