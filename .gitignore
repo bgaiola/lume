@@ -62,6 +62,9 @@ yarn-error.log*
 tmp/
 .DS_Store
 
+# Claude Code local state (per-clone, never shared)
+.claude/
+
 # Tauri
 **/src-tauri/target/
 **/src-tauri/gen/
