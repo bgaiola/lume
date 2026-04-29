@@ -1,10 +1,16 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
-  "description": "Capabilities granted to the Lume desktop main window in Phase 2 Block 1. Kept intentionally minimal: only core IPC + the log plugin. Native capture and input control add their own capabilities in Block 2.",
+  "description": "Capabilities granted to the Lume desktop main window. Phase 2 Block 2 adds the path-asset permission so the renderer can preview a screenshot we just wrote to the app cache directory. The IPC commands themselves are gated by Tauri's invoke whitelist (lib.rs).",
   "windows": ["main"],
   "permissions": [
     "core:default",
-    "log:default"
+    "log:default",
+    "core:path:default",
+    "core:path:allow-resolve-directory",
+    {
+      "identifier": "core:webview:allow-create-webview",
+      "allow": []
+    }
   ]
 }
