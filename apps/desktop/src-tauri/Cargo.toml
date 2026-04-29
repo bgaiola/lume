@@ -23,6 +23,19 @@ thiserror = "2"
 # Direct3D 11 / DXGI (Windows) and X11/PipeWire (Linux) under one API.
 xcap = "0.6"
 image = { version = "0.25", default-features = false, features = ["png"] }
+# Cross-platform input simulation. enigo wraps CGEvent (macOS), SendInput
+# (Windows), and X11 / Wayland (Linux). Phase 2 Block 3 adds the input
+# Tauri commands; the actual wiring of WebRTC -> input events ships in
+# a later integration block.
+enigo = "0.5"
+
+# macOS-specific deps for the Accessibility permission probe live
+# alongside the AXIsProcessTrustedWithOptions FFI call we make directly
+# in src/input/platform.rs (Block 3). No safe-binding crate is needed:
+# we link the symbol from the system framework via cargo:rustc-link-lib.
+
+[target.'cfg(target_os = "macos")'.dependencies]
+# (intentionally empty for now)
 
 [profile.release]
 panic = "abort"
