@@ -62,9 +62,10 @@ yarn-error.log*
 tmp/
 .DS_Store
 
-# Tauri (future phase 2)
+# Tauri
 **/src-tauri/target/
 **/src-tauri/gen/
+**/src-tauri/Cargo.lock
 
 # Docker volumes (named volumes are managed by docker)
 infrastructure/docker/data/

@@ -1,0 +1,24 @@
+{
+  "name": "@lume/desktop",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Lume desktop technician panel (Tauri 2 shell around apps/web).",
+  "type": "module",
+  "scripts": {
+    "dev": "PATH=\"$HOME/.cargo/bin:$PATH\" tauri dev",
+    "build": "PATH=\"$HOME/.cargo/bin:$PATH\" cargo build --manifest-path src-tauri/Cargo.toml",
+    "bundle": "PATH=\"$HOME/.cargo/bin:$PATH\" tauri build",
+    "bundle:debug": "PATH=\"$HOME/.cargo/bin:$PATH\" tauri build --debug",
+    "tauri": "PATH=\"$HOME/.cargo/bin:$PATH\" tauri",
+    "lint": "echo 'apps/desktop has no JS sources to lint (Rust handled by cargo)' && exit 0",
+    "typecheck": "echo 'apps/desktop has no JS sources to typecheck (Rust handled by cargo check)' && exit 0",
+    "test": "echo 'no tests yet' && exit 0",
+    "clean": "rm -rf src-tauri/target src-tauri/gen .turbo"
+  },
+  "dependencies": {
+    "@lume/web": "workspace:*"
+  },
+  "devDependencies": {
+    "@tauri-apps/cli": "^2.1.0"
+  }
+}

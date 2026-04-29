@@ -15,6 +15,7 @@ apps/
   api/             NestJS 10 backend (auth, users, organizations, sessions)
   web/             React + Vite technician panel
   client-web/      React + Vite end-customer screen-share UI
+  desktop/         Tauri 2 desktop wrapper around apps/web (Phase 2)
 packages/
   protocol/        Shared message contracts (Zod schemas + types)
   shared/          Shared utils, validators, common types
@@ -38,6 +39,7 @@ docs/
 - **pnpm** ≥ 9 (`npm i -g pnpm` or via `corepack enable`)
 - **Docker Desktop** (for Postgres, Redis, MinIO and coturn locally)
 - A **Resend** account for transactional email (free tier is enough for development)
+- **Rust** ≥ 1.77 only if you work on the desktop client (`curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh`)
 
 ---
 
@@ -87,6 +89,8 @@ When everything is running you should reach:
 | `pnpm db:migrate` | Apply Prisma migrations                     |
 | `pnpm db:seed`    | Seed development data                       |
 | `pnpm db:studio`  | Open Prisma Studio                          |
+| `pnpm desktop:dev`    | Run the Tauri desktop client in dev mode |
+| `pnpm desktop:bundle` | Build a `.app` / `.dmg` / `.msi` of the desktop client |
 | `pnpm infra:up`   | Start the docker-compose stack              |
 | `pnpm infra:down` | Stop the docker-compose stack               |
 | `pnpm infra:logs` | Tail docker-compose logs                    |
