@@ -17,6 +17,7 @@
     "@hookform/resolvers": "^3.9.0",
     "@lume/protocol": "workspace:*",
     "@lume/shared": "workspace:*",
+    "@lume/webrtc": "workspace:*",
     "@radix-ui/react-dialog": "^1.1.2",
     "@radix-ui/react-slot": "^1.1.0",
     "@tanstack/react-query": "^5.59.0",

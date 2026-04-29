@@ -1,25 +1,28 @@
 import { type SessionInfoResponse } from '@lume/protocol';
 import { normalizeSessionCode } from '@lume/shared';
+import {
+  LumeClient,
+  type LumeDisconnectReason,
+  type LumePeerState,
+} from '@lume/webrtc';
 import { useEffect, useMemo, useRef, useState } from 'react';
 
+import { ApiClientError, fetchSessionInfo, joinSession } from '@/lib/api';
+import { env } from '@/lib/env';
 
 import { EndScreen } from './components/end-screen';
 import { InvalidCodeScreen } from './components/invalid-code-screen';
 import { SharingScreen } from './components/sharing-screen';
 import { WelcomeScreen } from './components/welcome-screen';
 
-import { ApiClientError, fetchSessionInfo, joinSession } from '@/lib/api';
-import { env } from '@/lib/env';
-import { startScreenShare, type ScreenShareSession, type ScreenShareStatus } from '@/lib/screen-share';
-
 type AppState =
   | { kind: 'loading-info' }
   | { kind: 'invalid-code'; message?: string }
   | { kind: 'welcome'; info: SessionInfoResponse; isStarting: boolean; errorMessage?: string }
-  | { kind: 'sharing'; info: SessionInfoResponse; status: ScreenShareStatus }
+  | { kind: 'sharing'; info: SessionInfoResponse; state: LumePeerState }
   | {
       kind: 'ended';
-      reason: 'user' | 'host-left' | 'media-revoked' | 'error';
+      reason: LumeDisconnectReason;
       message?: string;
     };
 
@@ -30,9 +33,8 @@ export function App() {
       ? { kind: 'invalid-code', message: 'El enlace no contiene un código válido.' }
       : { kind: 'loading-info' },
   );
-  const sessionRef = useRef<ScreenShareSession | null>(null);
+  const clientRef = useRef<LumeClient | null>(null);
 
-  /* ----------------------------- Load info ----------------------------- */
   useEffect(() => {
     if (!code) {
       return;
@@ -58,11 +60,10 @@ export function App() {
     };
   }, [code]);
 
-  /* --------------------- Cleanup on unmount ---------------------------- */
   useEffect(() => {
     return () => {
-      sessionRef.current?.stop('user');
-      sessionRef.current = null;
+      clientRef.current?.disconnect('user');
+      clientRef.current = null;
     };
   }, []);
 
@@ -95,28 +96,30 @@ export function App() {
       return;
     }
 
-    const session = startScreenShare({
-      joinResponse,
+    const client = new LumeClient({
       signalingUrl: joinResponse.signalingUrl ?? env.signalingUrl,
+      joinToken: joinResponse.joinToken,
+      sessionCode: joinResponse.session.code,
+      iceServers: joinResponse.iceServers as RTCIceServer[],
       stream,
     });
-    sessionRef.current = session;
+    clientRef.current = client;
 
-    session.onStatusChange((status) => {
-      if (status.kind === 'ended') {
-        setState({ kind: 'ended', reason: status.reason, message: status.message });
-        sessionRef.current = null;
-        return;
-      }
-      setState({ kind: 'sharing', info, status });
+    client.on('stateChange', ({ state: peerState }) => {
+      setState({ kind: 'sharing', info, state: peerState });
     });
+    client.on('disconnect', ({ reason, message }) => {
+      setState({ kind: 'ended', reason, message });
+      clientRef.current = null;
+    });
+
+    void client.connect();
   };
 
   const handleStop = (): void => {
-    sessionRef.current?.stop('user');
+    clientRef.current?.disconnect('user');
   };
 
-  /* ----------------------------- Render -------------------------------- */
   if (state.kind === 'loading-info') {
     return (
       <div className="flex min-h-screen flex-col items-center justify-center gap-4 px-6 py-12">
@@ -141,17 +144,12 @@ export function App() {
   }
 
   if (state.kind === 'sharing') {
-    return <SharingScreen info={state.info} status={state.status} onStop={handleStop} />;
+    return <SharingScreen info={state.info} state={state.state} onStop={handleStop} />;
   }
 
   return <EndScreen reason={state.reason} message={state.message} />;
 }
 
-/**
- * Extract a normalized session code from `window.location.pathname`.
- * The customer reaches `https://lume.app/<CODE>` so we read the first
- * non-empty path segment.
- */
 function readCodeFromLocation(): string | null {
   const segments = window.location.pathname.split('/').filter(Boolean);
   if (segments.length === 0) {

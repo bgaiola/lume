@@ -1,31 +1,28 @@
 import { type SessionInfoResponse } from '@lume/protocol';
+import { type LumePeerState } from '@lume/webrtc';
 import { Eye, X } from 'lucide-react';
 
 import { LumeMark } from './lume-mark';
 
-import { type ScreenShareStatus } from '@/lib/screen-share';
-
-
 interface SharingScreenProps {
   info: SessionInfoResponse;
-  status: ScreenShareStatus;
+  state: LumePeerState;
   onStop: () => void;
 }
 
-const STATUS_COPY: Record<Exclude<ScreenShareStatus['kind'], 'ended' | 'idle'>, string> = {
-  'requesting-media': 'Esperando permiso del navegador...',
-  connecting: 'Conectando con Lume...',
-  'awaiting-host': 'Esperando al técnico...',
+const STATE_COPY: Record<LumePeerState, string> = {
+  idle: 'Conectando...',
+  'signaling-connecting': 'Conectando con Lume...',
+  'awaiting-peer': 'Esperando al técnico...',
   negotiating: 'Estableciendo conexión cifrada...',
   connected: 'está viendo tu pantalla',
   reconnecting: 'Reconectando...',
+  closed: 'Sesión cerrada.',
 };
 
-export function SharingScreen({ info, status, onStop }: SharingScreenProps) {
+export function SharingScreen({ info, state, onStop }: SharingScreenProps) {
   const presenter = info.organizationName ? `${info.hostName} de ${info.organizationName}` : info.hostName;
-  const isConnected = status.kind === 'connected';
-  const copy =
-    status.kind === 'ended' || status.kind === 'idle' ? 'Conectando...' : STATUS_COPY[status.kind];
+  const isConnected = state === 'connected';
 
   return (
     <div className="flex min-h-screen flex-col">
@@ -59,10 +56,10 @@ export function SharingScreen({ info, status, onStop }: SharingScreenProps) {
           {isConnected ? (
             <p className="font-display text-4xl italic leading-tight">
               <span className="not-italic font-sans font-semibold text-primary">{presenter}</span>{' '}
-              {copy}
+              {STATE_COPY[state]}
             </p>
           ) : (
-            <p className="font-display text-3xl italic leading-tight">{copy}</p>
+            <p className="font-display text-3xl italic leading-tight">{STATE_COPY[state]}</p>
           )}
         </div>
 

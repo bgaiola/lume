@@ -1,11 +1,13 @@
+import { type LumeDisconnectReason } from '@lume/webrtc';
+
 import { LumeMark } from './lume-mark';
 
 interface EndScreenProps {
-  reason: 'user' | 'host-left' | 'media-revoked' | 'error';
+  reason: LumeDisconnectReason;
   message?: string;
 }
 
-const REASON_COPY: Record<EndScreenProps['reason'], { title: string; subtitle: string }> = {
+const REASON_COPY: Record<LumeDisconnectReason, { title: string; subtitle: string }> = {
   user: {
     title: 'Sesión finalizada.',
     subtitle: 'Has detenido la compartición. Puedes cerrar esta pestaña.',
@@ -14,13 +16,25 @@ const REASON_COPY: Record<EndScreenProps['reason'], { title: string; subtitle: s
     title: 'El técnico ha salido.',
     subtitle: 'La sesión ha terminado. Puedes cerrar esta pestaña.',
   },
+  'client-left': {
+    title: 'Sesión finalizada.',
+    subtitle: 'La compartición se ha detenido.',
+  },
   'media-revoked': {
     title: 'Has revocado el permiso.',
     subtitle: 'La compartición se ha detenido. Puedes cerrar esta pestaña.',
   },
-  error: {
+  'signaling-error': {
     title: 'La sesión se ha interrumpido.',
-    subtitle: 'Ha habido un problema con la conexión. Puedes cerrar esta pestaña.',
+    subtitle: 'Ha habido un problema con la conexión.',
+  },
+  'ice-failed': {
+    title: 'No se ha podido establecer la conexión.',
+    subtitle: 'Comprueba tu red y vuelve a intentarlo.',
+  },
+  unknown: {
+    title: 'La sesión se ha interrumpido.',
+    subtitle: 'Ha habido un problema. Puedes cerrar esta pestaña.',
   },
 };
 
