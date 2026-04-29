@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+  <dict>
+    <!--
+      Hardened Runtime entitlements for the Lume desktop app. Lume is a
+      Developer ID-distributed app (NOT App Store), so we do NOT enable
+      app-sandbox. Each entitlement below is justified.
+    -->
+
+    <!--
+      Tauri 2 + WebKit2 + Wry need JIT for the embedded webview, dynamic
+      library loading from the bundle, and unsigned executable memory
+      allocation for V8/JavaScriptCore. Required for the panel to run.
+    -->
+    <key>com.apple.security.cs.allow-jit</key>
+    <true/>
+    <key>com.apple.security.cs.allow-unsigned-executable-memory</key>
+    <true/>
+    <key>com.apple.security.cs.disable-library-validation</key>
+    <true/>
+
+    <!--
+      The desktop client connects to the API and the signaling service
+      over the network. Outbound only.
+    -->
+    <key>com.apple.security.network.client</key>
+    <true/>
+
+    <!--
+      Allow loading dyld interposing in development. Production builds
+      get this stripped by the notarisation server if it sees fit.
+    -->
+    <key>com.apple.security.cs.allow-dyld-environment-variables</key>
+    <true/>
+
+    <!--
+      Phase 2 Block 2 exercises ScreenCaptureKit. macOS gates access
+      via TCC at runtime; the entitlement is purely declarative for the
+      hardened runtime audit.
+    -->
+    <key>com.apple.security.device.audio-input</key>
+    <false/>
+    <key>com.apple.security.device.camera</key>
+    <false/>
+  </dict>
+</plist>

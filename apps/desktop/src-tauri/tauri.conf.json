@@ -36,12 +36,66 @@
     "category": "Productivity",
     "shortDescription": "Lume technician panel",
     "longDescription": "Premium remote access for the AI era. Lume desktop hosts the technician panel as a native window with native screen capture, mouse and keyboard control across the customer session.",
+    "publisher": "Lume",
+    "copyright": "© 2026 Lume. All rights reserved.",
+    "homepage": "https://lume.app",
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",
       "icons/128x128@2x.png",
       "icons/icon.icns",
       "icons/icon.ico"
-    ]
+    ],
+    "macOS": {
+      "frameworks": [],
+      "minimumSystemVersion": "13.0",
+      "exceptionDomain": "",
+      "signingIdentity": null,
+      "providerShortName": null,
+      "hardenedRuntime": true,
+      "entitlements": "entitlements.plist",
+      "dmg": {
+        "windowSize": {
+          "width": 540,
+          "height": 360
+        },
+        "appPosition": {
+          "x": 140,
+          "y": 170
+        },
+        "applicationFolderPosition": {
+          "x": 400,
+          "y": 170
+        }
+      }
+    },
+    "windows": {
+      "certificateThumbprint": null,
+      "digestAlgorithm": "sha256",
+      "timestampUrl": "http://timestamp.digicert.com",
+      "wix": {
+        "language": "en-US"
+      }
+    },
+    "linux": {
+      "appimage": {
+        "bundleMediaFramework": false
+      },
+      "deb": {
+        "depends": [
+          "libwebkit2gtk-4.1-0",
+          "libgtk-3-0",
+          "libayatana-appindicator3-1"
+        ],
+        "section": "utility",
+        "priority": "optional"
+      },
+      "rpm": {
+        "depends": [
+          "webkit2gtk4.1",
+          "gtk3"
+        ]
+      }
+    }
   }
 }

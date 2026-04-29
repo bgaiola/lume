@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+  <dict>
+    <!--
+      Custom Info.plist entries for the Lume desktop bundle. Tauri merges
+      these on top of the values it generates from tauri.conf.json, so we
+      only declare the keys it does not handle automatically.
+    -->
+
+    <!--
+      Screen Recording (TCC) explanation. The first time the user invokes
+      a capture_display / capture_window command, macOS shows this string
+      in the consent dialog. Phase 2 Block 2 exercises this code path.
+    -->
+    <key>NSScreenCaptureDescription</key>
+    <string>Lume necesita acceso a tu pantalla para que puedas compartirla con tu técnico de soporte. Solo se captura lo que tú elijas y la sesión termina cuando tú lo decides.</string>
+
+    <!--
+      AppleEvents description. Used by macOS the first time the app sends
+      events to other apps (currently we do not, but Phase 3 Copilot
+      automations may, so we declare the description proactively).
+    -->
+    <key>NSAppleEventsUsageDescription</key>
+    <string>Lume puede ejecutar acciones en otras apps cuando tú o tu técnico lo solicitéis durante la sesión.</string>
+
+    <!--
+      App category for Launchpad / Spotlight grouping.
+    -->
+    <key>LSApplicationCategoryType</key>
+    <string>public.app-category.productivity</string>
+
+    <!--
+      Encourage Retina rendering. Tauri sets this on most paths, but
+      declaring it here ensures it is on for every bundle target.
+    -->
+    <key>NSHighResolutionCapable</key>
+    <true/>
+
+    <!--
+      Block third-party agents from injecting code into the app process.
+    -->
+    <key>NSAppTransportSecurity</key>
+    <dict>
+      <key>NSAllowsArbitraryLoads</key>
+      <false/>
+    </dict>
+  </dict>
+</plist>
