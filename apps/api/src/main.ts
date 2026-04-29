@@ -1,6 +1,6 @@
 import 'reflect-metadata';
 
-import { ValidationPipe, type INestApplication } from '@nestjs/common';
+import { type INestApplication } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { NestFactory } from '@nestjs/core';
 import { Logger } from 'nestjs-pino';
@@ -23,8 +23,10 @@ async function bootstrap(): Promise<void> {
     credentials: true,
   });
 
+  // Validation runs per route via `new ZodValidationPipe(schema)` rather
+  // than the default NestJS ValidationPipe (which would force a runtime
+  // dependency on class-validator). See common/pipes/zod-validation.pipe.ts.
   app.useGlobalFilters(new AllExceptionsFilter());
-  app.useGlobalPipes(new ValidationPipe({ transform: true }));
   app.setGlobalPrefix('v1', { exclude: ['health'] });
 
   app.enableShutdownHooks();

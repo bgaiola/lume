@@ -6,8 +6,11 @@ import { Server, type Socket } from 'socket.io';
 import { authenticatePeer, SignalingAuthError } from './auth';
 import { loadConfig } from './config';
 import { registerSocketHandlers } from './handlers';
+import { loadEnv } from './load-env';
 import { createLogger } from './logger';
 import { RoomRegistry } from './rooms';
+
+loadEnv();
 
 async function bootstrap(): Promise<void> {
   const config = loadConfig();

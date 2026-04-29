@@ -47,8 +47,8 @@ docs/
 # 1. Install dependencies
 pnpm install
 
-# 2. Copy the environment template and fill in real secrets
-cp .env.example .env
+# 2. Generate a local .env with random JWT + magic-link secrets
+pnpm env:bootstrap
 
 # 3. Start local infrastructure (Postgres, Redis, MinIO, coturn)
 pnpm infra:up
@@ -60,6 +60,9 @@ pnpm db:seed
 # 5. Start every app in parallel (Turbo orchestrates)
 pnpm dev
 ```
+
+For the full end-to-end smoke test (technician + customer in two
+browsers), see [docs/smoke-test.md](docs/smoke-test.md).
 
 When everything is running you should reach:
 

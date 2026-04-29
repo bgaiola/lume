@@ -13,6 +13,7 @@
     "verbatimModuleSyntax": false,
     "isolatedModules": false,
     "incremental": true,
+    "tsBuildInfoFile": "./dist/.tsbuildinfo",
     "types": ["node"]
   },
   "include": ["src/**/*"],

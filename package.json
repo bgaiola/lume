@@ -21,6 +21,7 @@
     "db:migrate": "pnpm --filter @lume/api run db:migrate",
     "db:seed": "pnpm --filter @lume/api run db:seed",
     "db:studio": "pnpm --filter @lume/api run db:studio",
+    "env:bootstrap": "node scripts/generate-env.mjs",
     "infra:up": "docker compose -f infrastructure/docker/docker-compose.yml up -d",
     "infra:down": "docker compose -f infrastructure/docker/docker-compose.yml down",
     "infra:logs": "docker compose -f infrastructure/docker/docker-compose.yml logs -f",

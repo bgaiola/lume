@@ -16,6 +16,7 @@
   "dependencies": {
     "@lume/protocol": "workspace:*",
     "@lume/shared": "workspace:*",
+    "dotenv": "^16.4.5",
     "jsonwebtoken": "^9.0.2",
     "pino": "^9.4.0",
     "pino-pretty": "^11.2.2",

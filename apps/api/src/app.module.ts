@@ -14,6 +14,10 @@ import { UsersModule } from './modules/users/users.module';
   imports: [
     ConfigModule.forRoot({
       isGlobal: true,
+      // Load the monorepo root .env so a single file feeds the API,
+      // the signaling service and Vite. A package-local .env (when
+      // present) wins because it appears first in the array.
+      envFilePath: ['.env', '../../.env'],
       load: [appConfigLoader],
       cache: true,
     }),
