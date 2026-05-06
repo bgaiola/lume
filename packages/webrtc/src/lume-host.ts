@@ -79,6 +79,19 @@ export class LumeHost extends TypedEmitter<LumeHostEventMap> {
     return out;
   }
 
+  /**
+   * Live RTCPeerConnections, keyed by client socket id. Exposed so the host
+   * UI can call `getStats()` for telemetry (latency, fps, bitrate). The map
+   * is a snapshot. Do not mutate the connections from outside.
+   */
+  get peerConnections(): ReadonlyMap<string, RTCPeerConnection> {
+    const out = new Map<string, RTCPeerConnection>();
+    for (const [id, peer] of this.peers) {
+      out.set(id, peer.pc);
+    }
+    return out;
+  }
+
   async connect(): Promise<void> {
     if (this.stopped) {
       throw new Error('LumeHost has been disconnected and cannot reconnect');

@@ -22,27 +22,15 @@ function SessionLivePage() {
 
   return (
     <AppShell>
-      <div className="mx-auto flex h-full max-w-5xl flex-col gap-6">
-        <header className="flex items-center justify-between">
-          <div>
-            <h1 className="font-display text-3xl italic">Sesión {code}</h1>
-            <p className="text-sm text-muted-foreground">
-              {data ? data.hostName : 'Cargando...'}
-              {data?.organizationName ? ` · ${data.organizationName}` : ''}
-            </p>
-          </div>
-          {data && (
-            <span className="rounded-full bg-primary/15 px-3 py-1 text-xs font-medium text-primary">
-              {data.status}
-            </span>
-          )}
-        </header>
-
-        <div className="relative flex-1 overflow-hidden rounded-xl border border-border bg-card">
-          {accessToken && (
-            <LiveSessionView sessionCode={code} accessToken={accessToken} />
-          )}
-        </div>
+      <div className="mx-auto flex h-full max-w-6xl flex-col">
+        {accessToken && (
+          <LiveSessionView
+            sessionCode={code}
+            accessToken={accessToken}
+            hostName={data?.hostName}
+            organizationName={data?.organizationName ?? null}
+          />
+        )}
       </div>
     </AppShell>
   );
