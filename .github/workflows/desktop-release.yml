@@ -68,8 +68,12 @@ jobs:
       - name: Install workspace dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Build the panel (apps/web)
-        run: pnpm --filter @lume/web build
+      - name: Build the panel (apps/web) and its workspace deps
+        # Turbo walks the `dependsOn: ["^build"]` graph so the internal
+        # packages (@lume/protocol, @lume/webrtc, @lume/shared) are
+        # built first; otherwise tsc fails to resolve them inside the
+        # web app build.
+        run: pnpm exec turbo run build --filter=@lume/web
 
       - name: Build desktop bundle
         env:
