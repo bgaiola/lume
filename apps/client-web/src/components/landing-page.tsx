@@ -269,45 +269,56 @@ function HeroPanel(): JSX.Element {
           </div>
         </div>
         <div className="relative aspect-[16/10] bg-gradient-to-br from-[#1a1f1d] via-surface-base to-[#15211e] p-5">
-          <div className="absolute left-6 top-6 right-32 rounded-lg bg-[#f5f3ee] shadow-2xl">
-            <div className="flex items-center gap-2 border-b border-[#d4cec1] bg-[#e8e4dd] px-3 py-2">
-              <div className="flex gap-1">
-                <span className="h-2 w-2 rounded-full bg-[#ff5f56]" />
-                <span className="h-2 w-2 rounded-full bg-[#ffbd2e]" />
-                <span className="h-2 w-2 rounded-full bg-[#27c93f]" />
+          {/* Two side-by-side cards, no overlap: admin window on the left
+              (60%), Copilot card on the right (38%), 2% gap. The Copilot
+              card is fully opaque so its text reads cleanly against the
+              dark gradient instead of bleeding through the white admin
+              panel below. */}
+          <div className="absolute inset-5 grid grid-cols-[60%_38%] gap-[2%]">
+            <div className="overflow-hidden rounded-lg bg-[#f5f3ee] shadow-2xl">
+              <div className="flex items-center gap-2 border-b border-[#d4cec1] bg-[#e8e4dd] px-3 py-2">
+                <div className="flex gap-1">
+                  <span className="h-2 w-2 rounded-full bg-[#ff5f56]" />
+                  <span className="h-2 w-2 rounded-full bg-[#ffbd2e]" />
+                  <span className="h-2 w-2 rounded-full bg-[#27c93f]" />
+                </div>
+                <span className="text-[10px] text-[#5a5550]">Panel de admin · error 500</span>
               </div>
-              <span className="text-[10px] text-[#5a5550]">Panel de admin · error 500</span>
+              <div className="space-y-2 p-3">
+                <p className="text-xs font-medium text-[#1a1815]">Error de conexión con la base de datos</p>
+                <div className="rounded-md border border-[#f5c6c6] bg-[#fdeaea] p-2 text-[10px] text-[#b34040]">
+                  <div className="font-mono font-semibold text-[#8a2828]">SequelizeConnectionError</div>
+                  connect ECONNREFUSED 127.0.0.1:5432
+                </div>
+                <p className="text-[10px] leading-relaxed text-[#5a5550]">
+                  El servicio PostgreSQL no responde. Última actividad hace 12 min.
+                </p>
+              </div>
             </div>
-            <div className="space-y-2 p-3">
-              <p className="text-xs font-medium text-[#1a1815]">Error de conexión con la base de datos</p>
-              <div className="rounded-md border border-[#f5c6c6] bg-[#fdeaea] p-2 text-[10px] text-[#b34040]">
-                <div className="font-mono font-semibold text-[#8a2828]">SequelizeConnectionError</div>
-                connect ECONNREFUSED 127.0.0.1:5432
+
+            <div className="flex flex-col justify-center rounded-lg border border-lime/40 bg-surface-elev p-4 shadow-glow-lime">
+              <div className="mb-2 flex items-center gap-1.5">
+                <Sparkles className="h-3 w-3 text-lime" aria-hidden />
+                <span className="font-mono text-[9px] uppercase tracking-wider text-lime">
+                  Copilot detecta
+                </span>
               </div>
-              <p className="text-[10px] text-[#5a5550]">El servicio PostgreSQL no responde.</p>
+              <p className="text-[12px] leading-relaxed text-ink-primary">
+                PostgreSQL parado hace <span className="font-semibold">12 min</span>. Sugiero
+                ejecutar la automatización{' '}
+                <span className="font-medium text-lime">Reiniciar PG</span>.
+              </p>
+              <div className="mt-3 flex gap-1.5">
+                <span className="flex-1 rounded bg-lime px-2 py-1.5 text-center text-[10px] font-semibold text-surface-deep">
+                  Ejecutar
+                </span>
+                <span className="flex-1 rounded border border-line bg-surface-base px-2 py-1.5 text-center text-[10px] text-ink-secondary">
+                  Más tarde
+                </span>
+              </div>
             </div>
           </div>
-          <div className="absolute right-5 top-5 w-56 rounded-lg border border-lime/40 bg-surface-base/95 p-3 shadow-glow-lime backdrop-blur">
-            <div className="mb-1.5 flex items-center gap-1.5">
-              <Sparkles className="h-3 w-3 text-lime" aria-hidden />
-              <span className="font-mono text-[9px] uppercase tracking-wide text-lime">
-                Copilot detecta
-              </span>
-            </div>
-            <p className="text-[11px] leading-snug text-ink-primary">
-              PostgreSQL parado hace 12 min. Sugiero ejecutar la automatización{' '}
-              <span className="font-medium text-lime">Reiniciar PG</span>.
-            </p>
-            <div className="mt-2 flex gap-1.5">
-              <span className="flex-1 rounded bg-lime px-2 py-1 text-center text-[9px] font-semibold text-surface-deep">
-                Ejecutar
-              </span>
-              <span className="flex-1 rounded border border-line px-2 py-1 text-center text-[9px] text-ink-secondary">
-                Más tarde
-              </span>
-            </div>
-          </div>
-          <div className="absolute bottom-5 right-5 flex items-center gap-2 rounded-lg border border-danger/30 bg-danger/10 px-2.5 py-1 font-mono text-[9px] text-danger">
+          <div className="absolute bottom-3 right-3 flex items-center gap-2 rounded-lg border border-danger/30 bg-surface-deep px-2.5 py-1 font-mono text-[9px] text-danger">
             <span className="h-1.5 w-1.5 rounded-full bg-danger animate-pulse-soft" aria-hidden />
             REC 14:32
           </div>
