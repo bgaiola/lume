@@ -6,7 +6,17 @@ import {
   type DesktopNotifyResponse,
   type DesktopPlatform,
 } from '@lume/protocol';
-import { Body, Controller, Get, HttpCode, HttpStatus, Param, Post, Res } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  HttpCode,
+  HttpStatus,
+  NotFoundException,
+  Param,
+  Post,
+  Res,
+} from '@nestjs/common';
 import { type Response } from 'express';
 
 import { ZodValidationPipe } from '../../common/pipes/zod-validation.pipe';
@@ -18,9 +28,10 @@ export class DownloadsController {
   constructor(private readonly downloads: DownloadsService) {}
 
   /**
-   * Stream the desktop bundle for the requested platform. Browsers
-   * receive `Content-Disposition: attachment` so the file downloads
-   * instead of opening in-page.
+   * Stream the desktop bundle for the requested platform. Falls back
+   * to a 302 redirect to the GitHub Release asset when no local mirror
+   * is staged. The same URL is therefore stable both before and after
+   * the bundle pipeline mirrors the binary into apps/api/public.
    */
   @Get('desktop/:platform')
   desktop(
@@ -28,11 +39,24 @@ export class DownloadsController {
     platform: DesktopPlatform,
     @Res() res: Response,
   ): void {
-    const binary = this.downloads.getBinary(platform);
+    const resolution = this.downloads.resolve(platform);
+
+    if (resolution.kind === 'redirect') {
+      res.redirect(HttpStatus.FOUND, resolution.url);
+      return;
+    }
+
+    if (resolution.kind === 'unavailable') {
+      throw new NotFoundException({
+        code: 'DOWNLOAD_NOT_AVAILABLE',
+        message: `No published build for ${platform} yet.`,
+      });
+    }
+
     res.setHeader('Content-Type', 'application/octet-stream');
-    res.setHeader('Content-Length', binary.size);
-    res.setHeader('Content-Disposition', `attachment; filename="${binary.filename}"`);
-    binary.stream.pipe(res);
+    res.setHeader('Content-Length', resolution.size);
+    res.setHeader('Content-Disposition', `attachment; filename="${resolution.filename}"`);
+    resolution.stream.pipe(res);
   }
 
   /**
