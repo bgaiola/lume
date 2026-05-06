@@ -72,3 +72,8 @@ tmp/
 
 # Docker volumes (named volumes are managed by docker)
 infrastructure/docker/data/
+
+# API runtime data (served binaries + waitlist log). Binaries live in
+# the desktop bundle output, the waitlist is per-machine and not committed.
+apps/api/public/downloads/
+apps/api/data/

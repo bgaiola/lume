@@ -6,6 +6,7 @@ import { LoggerModule } from './common/logger/logger.module';
 import { PrismaModule } from './common/prisma/prisma.module';
 import { HealthController } from './health.controller';
 import { AuthModule } from './modules/auth/auth.module';
+import { DownloadsModule } from './modules/downloads/downloads.module';
 import { OrganizationsModule } from './modules/organizations/organizations.module';
 import { SessionsModule } from './modules/sessions/sessions.module';
 import { UsersModule } from './modules/users/users.module';
@@ -27,6 +28,7 @@ import { UsersModule } from './modules/users/users.module';
     UsersModule,
     OrganizationsModule,
     SessionsModule,
+    DownloadsModule,
   ],
   controllers: [HealthController],
 })
