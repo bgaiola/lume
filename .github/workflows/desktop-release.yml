@@ -23,7 +23,7 @@ jobs:
           - { name: macos-arm64, runner: macos-14, target: aarch64-apple-darwin }
           - { name: macos-intel, runner: macos-13, target: x86_64-apple-darwin }
           - { name: windows-x64, runner: windows-latest, target: x86_64-pc-windows-msvc }
-          - { name: linux-x64, runner: ubuntu-22.04, target: x86_64-unknown-linux-gnu }
+          - { name: linux-x64, runner: ubuntu-24.04, target: x86_64-unknown-linux-gnu }
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -78,21 +78,12 @@ jobs:
         run: pnpm exec turbo run build --filter=@lume/web
 
       - name: Build desktop bundle
-        env:
-          # macOS code-signing + notarisation. Set these as repository
-          # secrets when the Apple Developer ID certificate activates.
-          # Until then, the build runs unsigned and the artifacts cannot
-          # be Gatekeeper-cleared on customer Macs.
-          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
-          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
-          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
-          APPLE_ID: ${{ secrets.APPLE_ID }}
-          APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
-          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
-
-          # Windows code-signing. Same story until we acquire an EV cert.
-          WINDOWS_CERTIFICATE: ${{ secrets.WINDOWS_CERTIFICATE }}
-          WINDOWS_CERTIFICATE_PASSWORD: ${{ secrets.WINDOWS_CERTIFICATE_PASSWORD }}
+        # No code-signing env vars yet: Apple Developer ID is pending
+        # and Windows EV cert is not on the roadmap. Tauri reads APPLE_*
+        # / WINDOWS_* from the environment and tries to sign as soon as
+        # any of them is set, even to an empty string, so we deliberately
+        # do not pass them at all. When the certs land, re-add an `env:`
+        # block guarded by `if: ${{ secrets.APPLE_SIGNING_IDENTITY != '' }}`.
         run: pnpm --filter @lume/desktop bundle
 
       - name: Upload artifacts
