@@ -1,6 +1,6 @@
 import { type JoinSessionResponse } from '@lume/protocol';
 import { LumeHost, type LumePeerState } from '@lume/webrtc';
-import { Loader2 } from 'lucide-react';
+import { Loader2, Maximize, Minimize } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 
 import { Button } from '@/components/ui/button';
@@ -34,9 +34,34 @@ const DEFAULT_ICE_SERVERS: JoinSessionResponse['iceServers'] = [
 
 export function LiveSessionView({ sessionCode, accessToken, iceServers }: LiveSessionViewProps) {
   const videoRef = useRef<HTMLVideoElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
   const hostRef = useRef<LumeHost | null>(null);
   const [state, setState] = useState<LumePeerState>('idle');
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [isFullscreen, setIsFullscreen] = useState(false);
+
+  useEffect(() => {
+    const onFullscreenChange = (): void => {
+      setIsFullscreen(document.fullscreenElement === containerRef.current);
+    };
+    document.addEventListener('fullscreenchange', onFullscreenChange);
+    return () => document.removeEventListener('fullscreenchange', onFullscreenChange);
+  }, []);
+
+  const toggleFullscreen = async (): Promise<void> => {
+    if (!containerRef.current) {
+      return;
+    }
+    try {
+      if (document.fullscreenElement === containerRef.current) {
+        await document.exitFullscreen();
+      } else {
+        await containerRef.current.requestFullscreen();
+      }
+    } catch {
+      // Browser may block fullscreen if not triggered by a user gesture.
+    }
+  };
 
   useEffect(() => {
     setErrorMessage(null);
@@ -86,12 +111,13 @@ export function LiveSessionView({ sessionCode, accessToken, iceServers }: LiveSe
   const showVideo = isConnected || state === 'reconnecting';
 
   return (
-    <div className="relative h-full w-full">
+    <div ref={containerRef} className="relative h-full w-full bg-black">
       <video
         ref={videoRef}
         autoPlay
         playsInline
         muted
+        onDoubleClick={() => void toggleFullscreen()}
         className={`h-full w-full bg-black object-contain ${showVideo ? 'opacity-100' : 'opacity-0'}`}
       />
 
@@ -136,7 +162,16 @@ export function LiveSessionView({ sessionCode, accessToken, iceServers }: LiveSe
         </div>
       )}
 
-      <div className="absolute bottom-4 right-4">
+      <div className="absolute bottom-4 right-4 flex items-center gap-2">
+        <Button
+          variant="secondary"
+          size="sm"
+          onClick={() => void toggleFullscreen()}
+          aria-label={isFullscreen ? 'Salir de pantalla completa' : 'Pantalla completa'}
+          title={isFullscreen ? 'Salir de pantalla completa (F)' : 'Pantalla completa (F)'}
+        >
+          {isFullscreen ? <Minimize className="h-4 w-4" /> : <Maximize className="h-4 w-4" />}
+        </Button>
         <Button variant="destructive" size="sm" onClick={handleStop}>
           Finalizar sesión
         </Button>

@@ -168,7 +168,7 @@ export class SessionsService {
       joinToken,
       joinTokenExpiresAt:
         joinTokenExpiresAt.toISOString() as JoinSessionResponse['joinTokenExpiresAt'],
-      iceServers: this.buildIceServers(),
+      iceServers: await this.buildIceServers(),
       signalingUrl: this.config.get('lumeSignalingPublicUrl', { infer: true }),
     };
   }
@@ -197,14 +197,63 @@ export class SessionsService {
     return `${base.replace(/\/$/, '')}/${code}`;
   }
 
-  private buildIceServers(): JoinSessionResponse['iceServers'] {
+  private async buildIceServers(): Promise<JoinSessionResponse['iceServers']> {
+    const cloudflareTokenId = this.config.get('cloudflareTurnTokenId', { infer: true });
+    const cloudflareApiToken = this.config.get('cloudflareTurnApiToken', { infer: true });
+
+    if (cloudflareTokenId && cloudflareApiToken) {
+      try {
+        return await this.fetchCloudflareCallsTurn(cloudflareTokenId, cloudflareApiToken);
+      } catch (err) {
+        this.log.error({ err }, 'Cloudflare Calls TURN unavailable, falling back to static config');
+      }
+    }
+
     const stunUrls = this.config.get('stunUrls', { infer: true });
     const turnUrl = this.config.get('turnUrl', { infer: true });
     const turnUsername = this.config.get('turnUsername', { infer: true });
     const turnPassword = this.config.get('turnPassword', { infer: true });
+    const turnUrls = [turnUrl, `${turnUrl}?transport=tcp`];
     return [
       { urls: stunUrls },
-      { urls: turnUrl, username: turnUsername, credential: turnPassword },
+      { urls: turnUrls, username: turnUsername, credential: turnPassword },
+    ];
+  }
+
+  /**
+   * Mint a fresh ICE-server config from Cloudflare Calls TURN. Credentials
+   * are short-lived (TTL controlled by env), so the customer browser gets
+   * a unique username / credential per session join. The long-lived API
+   * token never leaves the server.
+   */
+  private async fetchCloudflareCallsTurn(
+    tokenId: string,
+    apiToken: string,
+  ): Promise<JoinSessionResponse['iceServers']> {
+    const ttl = this.config.get('cloudflareTurnTtlSeconds', { infer: true });
+    const response = await fetch(
+      `https://rtc.live.cloudflare.com/v1/turn/keys/${encodeURIComponent(tokenId)}/credentials/generate`,
+      {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${apiToken}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ ttl }),
+      },
+    );
+    if (!response.ok) {
+      throw new Error(`Cloudflare Calls TURN responded ${response.status}`);
+    }
+    const data = (await response.json()) as {
+      iceServers: { urls: string[]; username: string; credential: string };
+    };
+    return [
+      {
+        urls: data.iceServers.urls,
+        username: data.iceServers.username,
+        credential: data.iceServers.credential,
+      },
     ];
   }
 

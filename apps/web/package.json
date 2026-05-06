@@ -5,9 +5,9 @@
   "description": "Lume technician panel (React + Vite + Tailwind + shadcn/ui).",
   "type": "module",
   "scripts": {
-    "dev": "vite --port 5173 --host 127.0.0.1 --strictPort",
+    "dev": "vite --port 4173 --host 0.0.0.0 --strictPort",
     "build": "tsc -b && vite build",
-    "preview": "vite preview --port 5173",
+    "preview": "vite preview --port 4173",
     "lint": "eslint \"src/**/*.{ts,tsx}\"",
     "typecheck": "tsc -b --pretty",
     "test": "echo 'no tests yet' && exit 0",

@@ -37,6 +37,14 @@ const envSchema = z.object({
   TURN_USERNAME: z.string().default('lume'),
   TURN_PASSWORD: z.string().default('lume_dev_turn_password'),
   STUN_URLS: z.string().default('stun:stun.l.google.com:19302,stun:stun1.l.google.com:19302'),
+
+  // Cloudflare Calls TURN. When both vars are present, the API mints a
+  // fresh ICE-server config per /sessions/:code/join request and ignores
+  // the static TURN_URL / TURN_USERNAME / TURN_PASSWORD above. Production
+  // setting; leave empty in dev to use the local coturn.
+  CLOUDFLARE_TURN_TOKEN_ID: z.string().default(''),
+  CLOUDFLARE_TURN_API_TOKEN: z.string().default(''),
+  CLOUDFLARE_TURN_TTL_SECONDS: z.coerce.number().int().min(60).default(86400),
 });
 
 export type Env = z.infer<typeof envSchema>;
@@ -71,6 +79,10 @@ export interface AppConfig {
   turnUsername: string;
   turnPassword: string;
   stunUrls: string[];
+
+  cloudflareTurnTokenId: string;
+  cloudflareTurnApiToken: string;
+  cloudflareTurnTtlSeconds: number;
 }
 
 /**
@@ -120,5 +132,9 @@ export const appConfigLoader = (): AppConfig => {
     stunUrls: env.STUN_URLS.split(',')
       .map((s) => s.trim())
       .filter(Boolean),
+
+    cloudflareTurnTokenId: env.CLOUDFLARE_TURN_TOKEN_ID,
+    cloudflareTurnApiToken: env.CLOUDFLARE_TURN_API_TOKEN,
+    cloudflareTurnTtlSeconds: env.CLOUDFLARE_TURN_TTL_SECONDS,
   };
 };

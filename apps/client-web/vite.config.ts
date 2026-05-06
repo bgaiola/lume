@@ -12,8 +12,18 @@ export default defineConfig({
     },
   },
   server: {
-    port: 5174,
+    port: 4174,
     strictPort: true,
+    // Cloudflare Tunnel proxies lumeapp.es to this dev server. Vite 5
+    // rejects unknown Host headers by default, so we whitelist the
+    // production hostname plus the trycloudflare.com / lhr.life
+    // fallbacks used during the LAN-bypass demo phase.
+    allowedHosts: [
+      'lumeapp.es',
+      'app.lumeapp.es',
+      '.trycloudflare.com',
+      '.lhr.life',
+    ],
   },
   build: {
     target: 'es2022',
