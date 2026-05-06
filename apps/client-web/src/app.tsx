@@ -12,10 +12,12 @@ import { env } from '@/lib/env';
 
 import { EndScreen } from './components/end-screen';
 import { InvalidCodeScreen } from './components/invalid-code-screen';
+import { LandingPage } from './components/landing-page';
 import { SharingScreen } from './components/sharing-screen';
 import { WelcomeScreen } from './components/welcome-screen';
 
 type AppState =
+  | { kind: 'landing' }
   | { kind: 'loading-info' }
   | { kind: 'invalid-code'; message?: string }
   | { kind: 'welcome'; info: SessionInfoResponse; isStarting: boolean; errorMessage?: string }
@@ -27,12 +29,16 @@ type AppState =
     };
 
 export function App() {
-  const code = useMemo(() => readCodeFromLocation(), []);
-  const [state, setState] = useState<AppState>(() =>
-    code === null
-      ? { kind: 'invalid-code', message: 'El enlace no contiene un código válido.' }
-      : { kind: 'loading-info' },
-  );
+  const { code, hasPath } = useMemo(() => readCodeFromLocation(), []);
+  const [state, setState] = useState<AppState>(() => {
+    if (!hasPath) {
+      return { kind: 'landing' };
+    }
+    if (code === null) {
+      return { kind: 'invalid-code', message: 'El enlace no contiene un código válido.' };
+    }
+    return { kind: 'loading-info' };
+  });
   const clientRef = useRef<LumeClient | null>(null);
 
   useEffect(() => {
@@ -120,6 +126,10 @@ export function App() {
     clientRef.current?.disconnect('user');
   };
 
+  if (state.kind === 'landing') {
+    return <LandingPage />;
+  }
+
   if (state.kind === 'loading-info') {
     return (
       <div className="flex min-h-screen flex-col items-center justify-center gap-4 px-6 py-12">
@@ -150,10 +160,15 @@ export function App() {
   return <EndScreen reason={state.reason} message={state.message} />;
 }
 
-function readCodeFromLocation(): string | null {
+/**
+ * Distinguishes the apex (`/` → marketing landing) from a session URL
+ * (`/<code>` → share flow). Returns `hasPath: false` only for the
+ * apex; any other path tries to be a session code.
+ */
+function readCodeFromLocation(): { code: string | null; hasPath: boolean } {
   const segments = window.location.pathname.split('/').filter(Boolean);
   if (segments.length === 0) {
-    return null;
+    return { code: null, hasPath: false };
   }
-  return normalizeSessionCode(segments[0] as string);
+  return { code: normalizeSessionCode(segments[0] as string), hasPath: true };
 }
