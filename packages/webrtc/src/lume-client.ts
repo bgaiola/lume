@@ -96,6 +96,15 @@ export class LumeClient extends TypedEmitter<LumeClientEventMap> {
   }
 
   /**
+   * The live RTCPeerConnection, or null before `connect()` completes and
+   * after `disconnect()`. Exposed so consumers can call `getStats()` for
+   * telemetry. Do not mutate the connection from outside.
+   */
+  get peerConnection(): RTCPeerConnection | null {
+    return this.peer;
+  }
+
+  /**
    * Open the signaling connection and arm the WebRTC pipeline. Resolves
    * once the signaling socket is live; the WebRTC negotiation continues
    * asynchronously and is reported via `stateChange` events.

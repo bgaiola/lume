@@ -10,6 +10,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { ApiClientError, fetchSessionInfo, joinSession } from '@/lib/api';
 import { env } from '@/lib/env';
 
+import { DebugOverlay } from './components/debug-overlay';
 import { EndScreen } from './components/end-screen';
 import { InvalidCodeScreen } from './components/invalid-code-screen';
 import { LandingPage } from './components/landing-page';
@@ -30,6 +31,8 @@ type AppState =
 
 export function App() {
   const { code, hasPath } = useMemo(() => readCodeFromLocation(), []);
+  const debugEnabled = useMemo(() => isDebugEnabled(), []);
+  const [activeClient, setActiveClient] = useState<LumeClient | null>(null);
   const [state, setState] = useState<AppState>(() => {
     if (!hasPath) {
       return { kind: 'landing' };
@@ -110,6 +113,7 @@ export function App() {
       stream,
     });
     clientRef.current = client;
+    setActiveClient(client);
 
     client.on('stateChange', ({ state: peerState }) => {
       setState({ kind: 'sharing', info, state: peerState });
@@ -117,6 +121,7 @@ export function App() {
     client.on('disconnect', ({ reason, message }) => {
       setState({ kind: 'ended', reason, message });
       clientRef.current = null;
+      setActiveClient(null);
     });
 
     void client.connect();
@@ -154,10 +159,27 @@ export function App() {
   }
 
   if (state.kind === 'sharing') {
-    return <SharingScreen info={state.info} state={state.state} onStop={handleStop} />;
+    return (
+      <>
+        <SharingScreen info={state.info} state={state.state} onStop={handleStop} />
+        {debugEnabled && activeClient ? <DebugOverlay client={activeClient} /> : null}
+      </>
+    );
   }
 
   return <EndScreen reason={state.reason} message={state.message} />;
+}
+
+/**
+ * Smoke-test affordance: append `?debug=1` to the session URL to render
+ * the live bitrate + negotiated codec overlay. No-op for normal users.
+ */
+function isDebugEnabled(): boolean {
+  try {
+    return new URLSearchParams(window.location.search).get('debug') === '1';
+  } catch {
+    return false;
+  }
 }
 
 /**
