@@ -6,3 +6,13 @@ export {
   type LumePeerState,
   type LumeSdkError,
 } from './types';
+export {
+  DEFAULT_ADAPTIVE_BITRATE,
+  type AdaptiveBitrateConfig,
+  type BitrateChangePayload,
+  type BitrateChangeReason,
+} from './adaptive-bitrate';
+export {
+  DEFAULT_VIDEO_CODEC_PREFERENCE,
+  type LumePreferredCodec,
+} from './codec-preference';

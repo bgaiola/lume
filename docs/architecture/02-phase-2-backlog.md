@@ -42,20 +42,24 @@ This doc is the source of truth when prioritising the next sprint.
 
 ### WebRTC robustness
 
-- **Adaptive bitrate**: replace the fixed 4 Mbps cap with a control
-  loop that reads `RTCRtpSender.getStats()` (bytesSent, packetsLost,
-  roundTripTime) and scales `params.encodings[0].maxBitrate` between
-  300 kbps and 8 Mbps. Hysteresis to avoid oscillation.
-- **Codec preference**: prefer VP9 (better screen-share compression),
-  fallback to H.264 for hardware decoders. Currently we let SDP defaults
-  decide.
-- **Reconnection**: today we call `restartIce()` on failure but the
-  Socket.io reconnect can still drop the room membership. Add a host
-  presence registry so a host that returns within 30 seconds rejoins
-  the same room.
-- **Multi-technician**: extend LumeHost to handle multiple host peers
-  per session (shared room with role-based broadcast). Requires SFU
-  decision (mediasoup vs LiveKit vs Janus, leaning mediasoup for cost).
+- **[done, Block 6a] Adaptive bitrate**: stats-driven control loop
+  (`AdaptiveBitrateController`) replaces the fixed 4 Mbps cap. Samples
+  `RTCRtpSender.getStats()` every 2s, scales between 300 kbps and 8 Mbps
+  with 4s hysteresis. Loss above 5% or RTT above 300 ms triggers a 20%
+  scale-down; three consecutive clean samples (loss under 1%, RTT under
+  150 ms) trigger a 15% scale-up. Surfaced via the new `bitrateChange`
+  event on `LumeClient`.
+- **[done, Block 6a] Codec preference**: VP9 first, VP8, H.264 applied
+  via `setCodecPreferences()` on the sending transceiver. Receivers
+  without VP9 still negotiate via the trailing fallback list.
+- **[pending, Block 6b] Reconnection**: today we call `restartIce()` on
+  failure but the Socket.io reconnect can still drop the room
+  membership. Add a host presence registry so a host that returns within
+  30 seconds rejoins the same room.
+- **[pending, Block 6c] Multi-technician**: extend LumeHost to handle
+  multiple host peers per session (shared room with role-based
+  broadcast). Requires SFU decision (mediasoup vs LiveKit vs Janus,
+  leaning mediasoup for cost).
 
 ### API and infrastructure
 

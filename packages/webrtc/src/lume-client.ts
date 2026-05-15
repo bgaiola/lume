@@ -10,6 +10,16 @@ import {
 } from '@lume/protocol';
 import { io, type Socket } from 'socket.io-client';
 
+import {
+  AdaptiveBitrateController,
+  type AdaptiveBitrateConfig,
+  type BitrateChangePayload,
+} from './adaptive-bitrate';
+import {
+  applyVideoCodecPreference,
+  DEFAULT_VIDEO_CODEC_PREFERENCE,
+  type LumePreferredCodec,
+} from './codec-preference';
 import { TypedEmitter } from './events';
 import {
   type LumeDisconnectReason,
@@ -17,14 +27,6 @@ import {
   type LumePeerState,
   type LumeSdkError,
 } from './types';
-
-/**
- * Maximum bitrate for the screen-share track (bps). Phase 1 caps this at
- * 4 Mbps. Adaptive bitrate logic in Phase 2 will replace the fixed cap
- * with stats-driven adjustments, but the WebRTC bandwidth estimator
- * already keeps us below this when network conditions worsen.
- */
-const MAX_SCREEN_BITRATE_BPS = 4_000_000;
 
 export interface LumeClientOptions {
   signalingUrl: string;
@@ -34,6 +36,19 @@ export interface LumeClientOptions {
   stream: MediaStream;
   /** Hard cap on Socket.io reconnection attempts. Defaults to 5. */
   reconnectionAttempts?: number;
+  /**
+   * Adaptive bitrate configuration. Pass `false` to disable the control
+   * loop and fall back to a fixed cap at `maxBps` (or 4 Mbps if not set).
+   * Pass a partial config to override individual knobs while keeping the
+   * rest of the sensible defaults.
+   */
+  adaptiveBitrate?: Partial<AdaptiveBitrateConfig> | false;
+  /**
+   * Codec preference order applied to the outgoing video transceiver.
+   * Defaults to VP9, VP8, H264 (best for screen-share content first).
+   * Pass `null` to skip codec reordering entirely.
+   */
+  preferredCodecs?: readonly LumePreferredCodec[] | null;
 }
 
 type LumeClientEventMap = {
@@ -42,6 +57,11 @@ type LumeClientEventMap = {
   disconnect: { reason: LumeDisconnectReason; message?: string };
   /** Fired once per connect, after the socket is up but before peer-up. */
   signalingReady: void;
+  /**
+   * Fired when the adaptive bitrate controller changes the target. UIs
+   * can render a debug overlay or a "low bandwidth" indicator from this.
+   */
+  bitrateChange: BitrateChangePayload;
 };
 
 /**
@@ -57,10 +77,17 @@ export class LumeClient extends TypedEmitter<LumeClientEventMap> {
   private mySocketId: string | null = null;
   private state: LumePeerState = 'idle';
   private stopped = false;
+  private bitrateController: AdaptiveBitrateController | null = null;
 
   constructor(options: LumeClientOptions) {
     super();
     this.options = options;
+    if (options.adaptiveBitrate !== false) {
+      this.bitrateController = new AdaptiveBitrateController(
+        options.adaptiveBitrate ?? undefined,
+        (payload) => this.emit('bitrateChange', payload),
+      );
+    }
   }
 
   /** Current high-level state. Mirrors the last `stateChange` event. */
@@ -84,12 +111,31 @@ export class LumeClient extends TypedEmitter<LumeClientEventMap> {
     this.transition('signaling-connecting');
 
     this.peer = new RTCPeerConnection({ iceServers: this.options.iceServers });
+    let videoSender: RTCRtpSender | null = null;
     for (const track of this.options.stream.getTracks()) {
-      this.peer.addTrack(track, this.options.stream);
+      const sender = this.peer.addTrack(track, this.options.stream);
+      if (track.kind === 'video') {
+        videoSender = sender;
+      }
       // Detect external permission revocation (e.g. browser-level "Stop sharing").
       track.addEventListener('ended', () => this.disconnect('media-revoked'));
     }
-    this.applySenderEncodings();
+
+    if (this.options.preferredCodecs !== null) {
+      const preference = this.options.preferredCodecs ?? DEFAULT_VIDEO_CODEC_PREFERENCE;
+      const videoTransceiver = this.peer
+        .getTransceivers()
+        .find((t) => t.sender.track?.kind === 'video');
+      if (videoTransceiver) {
+        applyVideoCodecPreference(videoTransceiver, preference);
+      }
+    }
+
+    if (this.bitrateController && videoSender) {
+      this.bitrateController.start(this.peer, videoSender);
+    } else {
+      this.applyFallbackBitrate();
+    }
 
     this.peer.oniceconnectionstatechange = () => this.onIceState();
     this.peer.onicecandidate = (event) => this.forwardIceCandidate(event.candidate);
@@ -146,6 +192,7 @@ export class LumeClient extends TypedEmitter<LumeClientEventMap> {
     }
     this.stopped = true;
 
+    this.bitrateController?.stop();
     for (const track of this.options.stream.getTracks()) {
       track.stop();
     }
@@ -173,18 +220,22 @@ export class LumeClient extends TypedEmitter<LumeClientEventMap> {
     this.emit('stateChange', { state: next });
   }
 
-  private applySenderEncodings(): void {
+  /**
+   * Static cap used only when adaptive bitrate is disabled by the caller.
+   * The default ceiling matches the upper bound of the adaptive range so
+   * that opting out does not silently reduce headroom.
+   */
+  private applyFallbackBitrate(): void {
     if (!this.peer) {
       return;
     }
+    const cfg = this.options.adaptiveBitrate;
+    const cap = cfg ? (cfg.maxBps ?? 4_000_000) : 4_000_000;
     for (const sender of this.peer.getSenders()) {
       const params = sender.getParameters();
       params.encodings = params.encodings?.length
-        ? params.encodings.map((encoding) => ({
-            ...encoding,
-            maxBitrate: MAX_SCREEN_BITRATE_BPS,
-          }))
-        : [{ maxBitrate: MAX_SCREEN_BITRATE_BPS }];
+        ? params.encodings.map((encoding) => ({ ...encoding, maxBitrate: cap }))
+        : [{ maxBitrate: cap }];
       void sender.setParameters(params).catch(() => {
         // Some browsers reject encoding changes pre-negotiation; ignored.
       });
