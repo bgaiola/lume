@@ -10,6 +10,8 @@ import { z } from 'zod';
 const envSchema = z.object({
   NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
   LOG_LEVEL: z.enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace']).default('info'),
+  // Same as the API: the platform tells us where to listen via PORT.
+  PORT: z.coerce.number().int().min(1).max(65535).optional(),
   SIGNALING_PORT: z.coerce.number().int().min(1).max(65535).default(3001),
   SIGNALING_CORS_ORIGINS: z
     .string()
@@ -42,7 +44,7 @@ export function loadConfig(): SignalingConfig {
   return {
     nodeEnv: env.NODE_ENV,
     logLevel: env.LOG_LEVEL,
-    port: env.SIGNALING_PORT,
+    port: env.PORT ?? env.SIGNALING_PORT,
     corsOrigins: env.SIGNALING_CORS_ORIGINS.split(',')
       .map((s) => s.trim())
       .filter(Boolean),

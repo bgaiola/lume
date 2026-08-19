@@ -1,0 +1,174 @@
+# Lume on Render.
+#
+# Everything here is on the free tier. What that costs in behaviour, so nobody
+# is surprised mid support call:
+#
+#   - Free web services stop after 15 minutes without traffic and take about a
+#     minute to wake. In practice the technician warms them up: opening the
+#     panel wakes the API, and opening the live session wakes signaling, both
+#     before the customer is sent a link. A customer clicking a link into a
+#     cold API waits out that minute.
+#   - Free web services run a single instance. That happens to suit the
+#     signaling service, which keeps its rooms in memory: a second instance
+#     would split the rooms and break calls. It also means a deploy drops
+#     every session in progress.
+#   - The database is deliberately NOT declared here. Render's free Postgres is
+#     deleted 30 days after creation, taking every user and every session with
+#     it. DATABASE_URL is set manually to a provider whose free tier does not
+#     expire.
+#
+# Upgrading later is a plan change per service, not a rewrite.
+
+services:
+  # ---------------------------------------------------------------- API ----
+  - type: web
+    name: lume-api
+    runtime: node
+    plan: free
+    region: frankfurt
+    branch: main
+    # Build the workspace packages the API imports before the API itself.
+    # `prisma generate` is explicit: in a workspace the automatic postinstall
+    # does not find a schema that lives under apps/api.
+    buildCommand: corepack enable && pnpm install --frozen-lockfile && pnpm --filter @lume/api exec prisma generate && pnpm --filter @lume/api... build
+    # Migrations run on start rather than at build time, because the build can
+    # run without the database being reachable. `migrate deploy` is idempotent,
+    # so repeating it on every restart is harmless.
+    startCommand: pnpm --filter @lume/api exec prisma migrate deploy && node apps/api/dist/main.js
+    healthCheckPath: /health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: LOG_LEVEL
+        value: info
+      - key: NODE_VERSION
+        value: "20.17.0"
+      # Set by hand in the dashboard, pointing at a free tier that does not
+      # expire. Never a Render free Postgres: see the note at the top.
+      - key: DATABASE_URL
+        sync: false
+      - key: JWT_SECRET
+        generateValue: true
+      - key: MAGIC_LINK_SECRET
+        generateValue: true
+      # Must match the value on lume-signaling, so it is generated once here
+      # and referenced there.
+      - key: SIGNALING_WEBHOOK_SECRET
+        generateValue: true
+      - key: RESEND_API_KEY
+        sync: false
+      - key: EMAIL_FROM
+        sync: false
+      - key: EMAIL_REPLY_TO
+        sync: false
+      - key: CLOUDFLARE_TURN_TOKEN_ID
+        sync: false
+      - key: CLOUDFLARE_TURN_API_TOKEN
+        sync: false
+      - key: LUME_API_PUBLIC_URL
+        fromService:
+          type: web
+          name: lume-api
+          property: host
+      - key: LUME_SIGNALING_PUBLIC_URL
+        sync: false
+      - key: LUME_PUBLIC_URL
+        sync: false
+      - key: LUME_CLIENT_PUBLIC_URL
+        sync: false
+      - key: API_CORS_ORIGINS
+        sync: false
+
+  # ---------------------------------------------------------- Signaling ----
+  - type: web
+    name: lume-signaling
+    runtime: node
+    plan: free
+    region: frankfurt
+    branch: main
+    buildCommand: corepack enable && pnpm install --frozen-lockfile && pnpm --filter @lume/signaling... build
+    startCommand: node services/signaling/dist/main.js
+    healthCheckPath: /health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: LOG_LEVEL
+        value: info
+      - key: NODE_VERSION
+        value: "20.17.0"
+      # Both services verify the same tokens, so this must be the exact value
+      # the API signs with.
+      - key: JWT_SECRET
+        fromService:
+          type: web
+          name: lume-api
+          envVarKey: JWT_SECRET
+      - key: SIGNALING_WEBHOOK_SECRET
+        fromService:
+          type: web
+          name: lume-api
+          envVarKey: SIGNALING_WEBHOOK_SECRET
+      - key: LUME_API_PUBLIC_URL
+        sync: false
+      - key: SIGNALING_CORS_ORIGINS
+        sync: false
+
+  # ------------------------------------------- Technician panel (static) ----
+  # Static sites never sleep, so the panel and the landing are always instant.
+  # Only the two Node services above have a cold start.
+  - type: web
+    name: lume-panel
+    runtime: static
+    branch: main
+    buildCommand: corepack enable && pnpm install --frozen-lockfile && pnpm --filter @lume/web... build
+    staticPublishPath: apps/web/dist
+    envVars:
+      - key: NODE_VERSION
+        value: "20.17.0"
+      - key: VITE_API_URL
+        sync: false
+      - key: VITE_SIGNALING_URL
+        sync: false
+    routes:
+      # Single-page app: every unknown path is handled by the router.
+      - type: rewrite
+        source: /*
+        destination: /index.html
+    headers:
+      - path: /*
+        name: X-Frame-Options
+        value: DENY
+      - path: /*
+        name: X-Content-Type-Options
+        value: nosniff
+      - path: /*
+        name: Referrer-Policy
+        value: strict-origin-when-cross-origin
+
+  # ------------------------------------ Customer app + landing (static) ----
+  - type: web
+    name: lume-app
+    runtime: static
+    branch: main
+    buildCommand: corepack enable && pnpm install --frozen-lockfile && pnpm --filter @lume/client-web... build
+    staticPublishPath: apps/client-web/dist
+    envVars:
+      - key: NODE_VERSION
+        value: "20.17.0"
+      - key: VITE_CLIENT_API_URL
+        sync: false
+      - key: VITE_CLIENT_SIGNALING_URL
+        sync: false
+    routes:
+      # `/<code>` and the legal pages are client-side routes, so everything
+      # that is not a real file has to reach index.html.
+      - type: rewrite
+        source: /*
+        destination: /index.html
+    headers:
+      - path: /*
+        name: X-Content-Type-Options
+        value: nosniff
+      - path: /*
+        name: Referrer-Policy
+        value: strict-origin-when-cross-origin

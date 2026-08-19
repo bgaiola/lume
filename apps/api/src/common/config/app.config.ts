@@ -11,6 +11,10 @@ const envSchema = z.object({
   NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
   LOG_LEVEL: z.enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace']).default('info'),
 
+  // Render (and most PaaS) inject the port to bind on as PORT and route
+  // traffic to it. Binding to our own API_PORT there means the health check
+  // never passes and the deploy is rolled back with no obvious reason.
+  PORT: z.coerce.number().int().min(1).max(65535).optional(),
   API_PORT: z.coerce.number().int().min(1).max(65535).default(3000),
   API_CORS_ORIGINS: z.string().default('http://localhost:5173,http://localhost:5174'),
 
@@ -117,7 +121,7 @@ export const appConfigLoader = (): AppConfig => {
     nodeEnv: env.NODE_ENV,
     logLevel: env.LOG_LEVEL,
 
-    apiPort: env.API_PORT,
+    apiPort: env.PORT ?? env.API_PORT,
     apiCorsOrigins: env.API_CORS_ORIGINS.split(',')
       .map((s) => s.trim())
       .filter(Boolean),
