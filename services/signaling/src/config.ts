@@ -15,6 +15,9 @@ const envSchema = z.object({
     .string()
     .default('http://localhost:5173,http://localhost:5174'),
   JWT_SECRET: z.string().min(32, 'JWT_SECRET must be at least 32 chars'),
+  // Where to report that a room emptied, so the API can close the session.
+  LUME_API_PUBLIC_URL: z.string().url().default('http://localhost:3000'),
+  SIGNALING_WEBHOOK_SECRET: z.string().min(16).default('dev_signaling_webhook_secret_change_me'),
 });
 
 export interface SignalingConfig {
@@ -23,6 +26,8 @@ export interface SignalingConfig {
   port: number;
   corsOrigins: string[];
   jwtSecret: string;
+  apiBaseUrl: string;
+  webhookSecret: string;
 }
 
 export function loadConfig(): SignalingConfig {
@@ -42,5 +47,7 @@ export function loadConfig(): SignalingConfig {
       .map((s) => s.trim())
       .filter(Boolean),
     jwtSecret: env.JWT_SECRET,
+    apiBaseUrl: env.LUME_API_PUBLIC_URL,
+    webhookSecret: env.SIGNALING_WEBHOOK_SECRET,
   };
 }

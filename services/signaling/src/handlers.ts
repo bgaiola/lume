@@ -16,14 +16,13 @@ import { type DefaultEventsMap } from 'socket.io/dist/typed-events';
 
 import { type AuthenticatedPeer } from './auth';
 import { type RoomRegistry } from './rooms';
+import { type SessionReporter } from './session-reporter';
 
 interface SocketData {
   peer: AuthenticatedPeer;
 }
 
 type SignalingSocket = Socket<DefaultEventsMap, DefaultEventsMap, DefaultEventsMap, SocketData>;
-
-const PSEUDO_SESSION_ID = 'pending';
 
 /**
  * Wire a freshly authenticated socket into the signaling lifecycle:
@@ -34,40 +33,62 @@ export function registerSocketHandlers(
   socket: SignalingSocket,
   rooms: RoomRegistry,
   log: Logger,
+  reporter: SessionReporter,
 ): void {
   const peer = socket.data.peer;
   const sessionCode = peer.sessionCode;
-  const sessionId = peer.role === 'client' ? peer.sessionId : PSEUDO_SESSION_ID;
-
-  void socket.join(sessionCode);
+  // Both roles now carry a real session id in their token, so presence events
+  // no longer have to advertise a placeholder.
+  const sessionId = peer.sessionId;
 
   if (peer.role === 'host') {
-    const previous = rooms.attachHost(sessionCode, socket.id);
-    if (previous) {
-      io.sockets.sockets.get(previous)?.disconnect(true);
+    const attached = rooms.attachHost(sessionCode, socket.id, peer.userId, sessionId);
+    if (!attached.ok) {
+      sendError(socket, 'SESSION_FULL', 'another technician is already hosting this session');
+      socket.disconnect(true);
+      return;
+    }
+    if (attached.evicted) {
+      io.sockets.sockets.get(attached.evicted)?.disconnect(true);
     }
   } else {
-    rooms.attachClient(sessionCode, socket.id);
+    const attached = rooms.attachClient(sessionCode, socket.id, sessionId);
+    if (!attached.ok) {
+      sendError(socket, 'SESSION_FULL', 'this session already has a participant');
+      socket.disconnect(true);
+      return;
+    }
   }
+
+  void socket.join(sessionCode);
 
   log.info(
     { socketId: socket.id, role: peer.role, sessionCode },
     'peer joined session',
   );
 
-  // Notify everyone already in the room (i.e. the other peer) that a new
-  // peer has joined. Each peer needs the other peer's socket.id to address
-  // SDP and ICE messages directly.
+  const room = rooms.ensure(sessionCode);
+
+  // Presence is announced only to the peer on the OTHER side of the call.
+  //
+  // This used to broadcast to the whole room, which handed one customer the
+  // socket id of another. Combined with the client accepting an SDP answer
+  // from any sender, that was enough to redirect somebody else's screen share.
   const peerJoined: PeerJoinedEvent = {
     role: peer.role,
     socketId: socket.id,
     sessionId: sessionId as PeerJoinedEvent['sessionId'],
   };
-  socket.to(sessionCode).emit(SIGNALING_EVENTS.peerJoined, peerJoined);
+  if (peer.role === 'host') {
+    for (const clientId of room.clientSocketIds) {
+      io.sockets.sockets.get(clientId)?.emit(SIGNALING_EVENTS.peerJoined, peerJoined);
+    }
+  } else if (room.hostSocketId) {
+    io.sockets.sockets.get(room.hostSocketId)?.emit(SIGNALING_EVENTS.peerJoined, peerJoined);
+  }
 
-  // Tell the new peer about every existing peer in the room so it knows
-  // who to negotiate with without waiting for a fresh `peer:joined`.
-  const room = rooms.ensure(sessionCode);
+  // Tell the new peer about the peers already present, so it can negotiate
+  // without waiting for a fresh `peer:joined`. Same rule: only the other side.
   const existing: PeerJoinedEvent[] = [];
   if (peer.role !== 'host' && room.hostSocketId) {
     existing.push({
@@ -163,6 +184,12 @@ export function registerSocketHandlers(
       socketId: socket.id,
     };
     io.to(sessionCode).emit(SIGNALING_EVENTS.peerLeft, peerLeft);
+
+    // Last one out closes the session, so a code cannot be reused after the
+    // call. Best effort: the API also sweeps expired sessions on a timer.
+    if (detached.emptied && detached.sessionId) {
+      void reporter.reportEnded(detached.sessionId);
+    }
   });
 }
 

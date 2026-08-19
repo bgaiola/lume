@@ -1,5 +1,7 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
+import { APP_GUARD } from '@nestjs/core';
+import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 
 import { appConfigLoader } from './common/config/app.config';
 import { LoggerModule } from './common/logger/logger.module';
@@ -22,6 +24,17 @@ import { UsersModule } from './modules/users/users.module';
       load: [appConfigLoader],
       cache: true,
     }),
+    // Rate limiting, applied globally through APP_GUARD below.
+    //
+    // The public session routes were the exposed surface: with a 5-character
+    // code and no limit, the whole code space could be swept in under two
+    // days, and every hit handed out Cloudflare TURN credentials billed to us.
+    // Routes that need a tighter or looser budget override this with
+    // @Throttle on the handler.
+    ThrottlerModule.forRoot([
+      { name: 'short', ttl: 1_000, limit: 5 },
+      { name: 'medium', ttl: 60_000, limit: 60 },
+    ]),
     LoggerModule,
     PrismaModule,
     AuthModule,
@@ -31,5 +44,6 @@ import { UsersModule } from './modules/users/users.module';
     DownloadsModule,
   ],
   controllers: [HealthController],
+  providers: [{ provide: APP_GUARD, useClass: ThrottlerGuard }],
 })
 export class AppModule {}

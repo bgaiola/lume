@@ -3,6 +3,7 @@ import 'reflect-metadata';
 import { type INestApplication } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { NestFactory } from '@nestjs/core';
+import helmet from 'helmet';
 import { Logger } from 'nestjs-pino';
 
 import { AppModule } from './app.module';
@@ -18,10 +19,18 @@ async function bootstrap(): Promise<void> {
 
   const config = app.get(ConfigService<AppConfig, true>);
 
+  // Security headers. `contentSecurityPolicy` is off because this process
+  // only serves JSON: the CSP that matters belongs to the two Vite apps.
+  app.use(helmet({ contentSecurityPolicy: false, crossOriginResourcePolicy: false }));
+
   app.enableCors({
     origin: config.get('apiCorsOrigins', { infer: true }),
     credentials: true,
   });
+
+  // Trust the proxy in front of us (Cloudflare tunnel) so the rate limiter
+  // buckets by the real client IP instead of lumping every request together.
+  app.getHttpAdapter().getInstance().set('trust proxy', 1);
 
   // Validation runs per route via `new ZodValidationPipe(schema)` rather
   // than the default NestJS ValidationPipe (which would force a runtime

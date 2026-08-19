@@ -23,7 +23,7 @@
     "clean": "rm -rf dist .turbo *.tsbuildinfo",
     "lint": "eslint \"src/**/*.ts\"",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "test": "echo 'no tests yet' && exit 0"
+    "test": "echo 'no tests in this package' && exit 0"
   },
   "dependencies": {
     "@lume/protocol": "workspace:*",

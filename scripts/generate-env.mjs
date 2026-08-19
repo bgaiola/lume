@@ -29,10 +29,12 @@ if (!existsSync(examplePath)) {
 
 const jwtSecret = randomBytes(48).toString('hex');
 const magicLinkSecret = randomBytes(48).toString('hex');
+const signalingWebhookSecret = randomBytes(32).toString('hex');
 
 const replaced = readFileSync(examplePath, 'utf8')
   .replace('replace_me_with_64_random_hex_chars', jwtSecret)
-  .replace('replace_me_with_another_64_random_hex_chars', magicLinkSecret);
+  .replace('replace_me_with_another_64_random_hex_chars', magicLinkSecret)
+  .replace('replace_me_with_32_random_hex_chars', signalingWebhookSecret);
 
 writeFileSync(targetPath, replaced, { mode: 0o600 });
 console.warn(`[generate-env] wrote ${targetPath} with fresh JWT and magic-link secrets.`);

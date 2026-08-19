@@ -20,8 +20,13 @@ import {
 
 export interface LumeHostOptions {
   signalingUrl: string;
-  /** API access token (the same JWT the host received from POST /auth/...). */
-  accessToken: string;
+  /**
+   * Session-scoped host credential from `POST /v1/sessions`, NOT the plain API
+   * access token. The signaling service refuses the access token now: it says
+   * who you are but not which session you are entitled to host, which is what
+   * allowed any account to take over a stranger's live session.
+   */
+  hostToken: string;
   sessionCode: string;
   iceServers: LumeIceServer[];
   reconnectionAttempts?: number;
@@ -106,7 +111,7 @@ export class LumeHost extends TypedEmitter<LumeHostEventMap> {
       transports: ['websocket', 'polling'],
       auth: {
         role: 'host',
-        token: this.options.accessToken,
+        token: this.options.hostToken,
         sessionCode: this.options.sessionCode,
       },
       reconnectionAttempts: this.options.reconnectionAttempts ?? 5,

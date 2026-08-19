@@ -15,6 +15,8 @@ import {
 import { generateSessionCode, type SessionCode } from '@lume/shared';
 import {
   ConflictException,
+  ForbiddenException,
+  GoneException,
   Injectable,
   Logger,
   NotFoundException,
@@ -48,6 +50,9 @@ export class SessionsService {
     organizationId: string | null,
     input: CreateSessionRequest,
   ): Promise<CreateSessionResponse> {
+    const pendingTtlMs =
+      this.config.get('sessionPendingTtlMinutes', { infer: true }) * 60 * 1000;
+
     let lastError: unknown;
     for (let attempt = 0; attempt < MAX_CODE_GENERATION_RETRIES; attempt += 1) {
       const code = generateSessionCode();
@@ -59,12 +64,18 @@ export class SessionsService {
             organizationId,
             clientName: input.clientName,
             status: 'PENDING',
+            expiresAt: new Date(Date.now() + pendingTtlMs),
           },
         });
         const session = this.toDto(created);
+        const host = await this.mintHostToken(created);
         return {
           session,
           joinUrl: this.buildJoinUrl(code),
+          hostToken: host.token,
+          hostTokenExpiresAt: host.expiresAt.toISOString() as CreateSessionResponse['hostTokenExpiresAt'],
+          iceServers: await this.buildIceServers(),
+          signalingUrl: this.config.get('lumeSignalingPublicUrl', { infer: true }),
         };
       } catch (e) {
         if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2002') {
@@ -117,9 +128,7 @@ export class SessionsService {
     if (!session) {
       throw new NotFoundException('Session not found');
     }
-    if (session.status === 'ENDED' || session.status === 'CANCELLED') {
-      throw new ConflictException('Session is no longer accepting clients');
-    }
+    this.assertJoinable(session);
 
     const hostName =
       session.hostUser.name ?? session.hostUser.email.split('@')[0] ?? 'A Lume technician';
@@ -137,9 +146,18 @@ export class SessionsService {
     if (!session) {
       throw new NotFoundException('Session not found');
     }
-    if (session.status === 'ENDED' || session.status === 'CANCELLED') {
-      throw new ConflictException('Session is no longer accepting clients');
-    }
+    this.assertJoinable(session);
+
+    // The customer just arrived, so the short PENDING window is replaced by
+    // the ceiling for a live session. Without this the session would expire
+    // 15 minutes into a support call that is going fine.
+    const startedAt = session.startedAt ?? new Date();
+    const maxDurationMs =
+      this.config.get('sessionMaxDurationMinutes', { infer: true }) * 60 * 1000;
+    const expiresAt =
+      session.status === 'ACTIVE'
+        ? session.expiresAt
+        : new Date(startedAt.getTime() + maxDurationMs);
 
     const updated = await this.prisma.session.update({
       where: { id: session.id },
@@ -147,11 +165,14 @@ export class SessionsService {
         clientName: input.clientName ?? session.clientName,
         metadata: (input.metadata as Prisma.InputJsonValue | undefined) ?? undefined,
         status: 'ACTIVE',
-        startedAt: session.startedAt ?? new Date(),
+        startedAt,
+        expiresAt,
       },
     });
 
-    const joinTokenTtl = '1h';
+    // The join token must never outlive the session it unlocks, otherwise a
+    // leaked token keeps working after the session is closed.
+    const joinTokenExpiresAt = earliest(expiresAt, new Date(Date.now() + 15 * 60 * 1000));
     const joinToken = await this.jwt.signAsync(
       {
         sub: `session-join:${session.id}`,
@@ -159,9 +180,8 @@ export class SessionsService {
         sessionCode: session.code,
         sessionId: session.id,
       },
-      { expiresIn: joinTokenTtl },
+      { expiresIn: secondsUntil(joinTokenExpiresAt) },
     );
-    const joinTokenExpiresAt = new Date(Date.now() + 60 * 60 * 1000);
 
     return {
       session: this.toDto(updated),
@@ -174,14 +194,131 @@ export class SessionsService {
   }
 
   /**
-   * Mark a session ended. Used when the host or client disconnects.
-   * Block 3 (signaling) wires this in via a webhook.
+   * Mark a session ended. Called by the signaling service over an internal
+   * webhook when the room empties, and by the sweep below.
    */
   async markEnded(sessionId: string): Promise<void> {
-    await this.prisma.session.updateMany({
+    const result = await this.prisma.session.updateMany({
       where: { id: sessionId, status: { in: ['PENDING', 'ACTIVE'] } },
       data: { status: 'ENDED', endedAt: new Date() },
     });
+    if (result.count > 0) {
+      this.log.log({ sessionId }, 'session ended');
+    }
+  }
+
+  /**
+   * End a session on the technician's request. Ownership is checked here and
+   * not in the controller so every caller goes through the same rule: you may
+   * only end a session you host, or one belonging to your organization.
+   */
+  async endAsHost(
+    sessionId: string,
+    userId: string,
+    organizationId: string | null,
+  ): Promise<Session> {
+    const session = await this.prisma.session.findUnique({ where: { id: sessionId } });
+    if (!session) {
+      throw new NotFoundException('Session not found');
+    }
+    const ownsIt =
+      session.hostUserId === userId ||
+      (organizationId !== null && session.organizationId === organizationId);
+    if (!ownsIt) {
+      throw new ForbiddenException('Not your session');
+    }
+    if (session.status === 'ENDED' || session.status === 'CANCELLED') {
+      return this.toDto(session);
+    }
+    const updated = await this.prisma.session.update({
+      where: { id: sessionId },
+      data: { status: 'ENDED', endedAt: new Date() },
+    });
+    return this.toDto(updated);
+  }
+
+  /**
+   * Close sessions that ran past their expiry. Covers the cases the disconnect
+   * webhook cannot: the API restarted, the signaling service died, or a tab
+   * was left open. Returns how many were closed so the caller can log it.
+   */
+  async sweepExpired(now: Date = new Date()): Promise<number> {
+    const result = await this.prisma.session.updateMany({
+      where: { status: { in: ['PENDING', 'ACTIVE'] }, expiresAt: { lt: now } },
+      data: { status: 'ENDED', endedAt: now },
+    });
+    return result.count;
+  }
+
+  /**
+   * A session accepts clients only while it is open AND unexpired. Expiry is
+   * reported separately from "ended" so the customer sees "este enlace ha
+   * caducado" instead of a generic conflict.
+   */
+  private assertJoinable(session: Pick<PrismaSession, 'status' | 'expiresAt'>): void {
+    if (session.status === 'ENDED' || session.status === 'CANCELLED') {
+      throw new ConflictException('Session is no longer accepting clients');
+    }
+    if (session.expiresAt.getTime() <= Date.now()) {
+      throw new GoneException('Session link has expired');
+    }
+  }
+
+  /**
+   * Mint the token that lets this technician host this specific session.
+   *
+   * The signaling service used to accept a plain access token plus whatever
+   * session code the caller typed, so any account could take over any live
+   * session. Binding the code into the signature is what closes that.
+   */
+  private async mintHostToken(
+    session: PrismaSession,
+  ): Promise<{ token: string; expiresAt: Date }> {
+    const expiresAt = earliest(session.expiresAt, new Date(Date.now() + 8 * 60 * 60 * 1000));
+    const token = await this.jwt.signAsync(
+      {
+        sub: session.hostUserId,
+        type: 'session-host',
+        sessionCode: session.code,
+        sessionId: session.id,
+        organizationId: session.organizationId,
+      },
+      { expiresIn: secondsUntil(expiresAt) },
+    );
+    return { token, expiresAt };
+  }
+
+  /**
+   * Re-mint a host token for a session the technician already owns, so a
+   * reconnect does not require creating a new session (and a new code the
+   * customer would have to be sent again).
+   */
+  async refreshHostToken(
+    idOrCode: string,
+    userId: string,
+    organizationId: string | null,
+  ): Promise<{ token: string; expiresAt: Date; iceServers: JoinSessionResponse['iceServers'] }> {
+    // The panel reaches a live session by its code (that is what the URL
+    // carries), while other callers hold the id. Accepting either saves the
+    // round trip that translating one into the other would need.
+    const session = await this.prisma.session.findFirst({
+      where: { OR: [{ id: idOrCode }, { code: idOrCode.toUpperCase() }] },
+    });
+    if (!session) {
+      throw new NotFoundException('Session not found');
+    }
+    const ownsIt =
+      session.hostUserId === userId ||
+      (organizationId !== null && session.organizationId === organizationId);
+    if (!ownsIt) {
+      throw new ForbiddenException('Not your session');
+    }
+    this.assertJoinable(session);
+    const { token, expiresAt } = await this.mintHostToken(session);
+    // The technician needs relay credentials too. Handing them only to the
+    // customer left the technician unable to connect from a factory network
+    // that blocks direct peer traffic, which is exactly where support happens.
+    return { token, expiresAt, iceServers: await this.buildIceServers() };
   }
 
   /**
@@ -276,4 +413,19 @@ export class SessionsService {
   static codeBrand(code: string): SessionCode {
     return code as SessionCode;
   }
+}
+
+/** The earlier of two instants. */
+function earliest(a: Date, b: Date): Date {
+  return a.getTime() <= b.getTime() ? a : b;
+}
+
+/**
+ * Whole seconds from now until `when`, floored at 1.
+ *
+ * `jsonwebtoken` rejects a zero or negative `expiresIn`, and a session that is
+ * already expiring should mint a token that dies immediately rather than throw.
+ */
+function secondsUntil(when: Date): number {
+  return Math.max(1, Math.floor((when.getTime() - Date.now()) / 1000));
 }

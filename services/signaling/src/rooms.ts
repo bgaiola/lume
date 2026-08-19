@@ -15,8 +15,21 @@ import { type Logger } from 'pino';
 export interface RoomState {
   sessionCode: string;
   hostSocketId: string | null;
+  /** User id of the technician holding the host seat, for takeover checks. */
+  hostUserId: string | null;
   clientSocketIds: Set<string>;
+  /** Session id, so the room can be reported as ended when it empties. */
+  sessionId: string | null;
 }
+
+/** Phase 1 is one technician and one customer per room. */
+export const MAX_CLIENTS_PER_ROOM = 1;
+
+export type AttachHostResult =
+  | { ok: true; evicted: string | null }
+  | { ok: false; reason: 'OCCUPIED_BY_ANOTHER_USER' };
+
+export type AttachClientResult = { ok: true } | { ok: false; reason: 'SESSION_FULL' };
 
 export class RoomRegistry {
   private readonly rooms = new Map<string, RoomState>();
@@ -31,7 +44,9 @@ export class RoomRegistry {
       room = {
         sessionCode,
         hostSocketId: null,
+        hostUserId: null,
         clientSocketIds: new Set(),
+        sessionId: null,
       };
       this.rooms.set(sessionCode, room);
     }
@@ -39,27 +54,55 @@ export class RoomRegistry {
   }
 
   /**
-   * Attach a host to its room. Returns the previous host socket id, if any,
-   * so the caller can disconnect a stale host that reconnected.
+   * Attach a host to its room.
+   *
+   * Reconnecting as the same technician evicts your own stale socket, which is
+   * what happens after a network blip. A DIFFERENT technician is refused: this
+   * used to overwrite the host seat unconditionally, so a second party could
+   * displace the technician mid-session and inherit the customer's screen.
+   * Session ownership is already proven by the token (see auth.ts); this is the
+   * second lock, on the room itself.
    */
-  attachHost(sessionCode: string, socketId: string): string | null {
+  attachHost(sessionCode: string, socketId: string, hostUserId: string, sessionId: string): AttachHostResult {
     const room = this.ensure(sessionCode);
+    if (room.hostUserId !== null && room.hostUserId !== hostUserId) {
+      this.log.warn(
+        { sessionCode, incumbent: room.hostUserId, challenger: hostUserId },
+        'refused host takeover by a different user',
+      );
+      return { ok: false, reason: 'OCCUPIED_BY_ANOTHER_USER' };
+    }
     const previous = room.hostSocketId;
     room.hostSocketId = socketId;
+    room.hostUserId = hostUserId;
+    room.sessionId = sessionId;
     this.socketToRoom.set(socketId, sessionCode);
     if (previous && previous !== socketId) {
       this.log.warn(
         { sessionCode, previous, current: socketId },
-        'host reconnected, evicting previous host',
+        'host reconnected, evicting its own previous socket',
       );
     }
-    return previous && previous !== socketId ? previous : null;
+    return { ok: true, evicted: previous && previous !== socketId ? previous : null };
   }
 
-  attachClient(sessionCode: string, socketId: string): void {
+  /**
+   * Attach a customer to its room, refusing once the room is full.
+   *
+   * The cap existed in the protocol as a SESSION_FULL error code but was never
+   * enforced, so any number of peers could sit in a room and receive the
+   * presence of everyone else.
+   */
+  attachClient(sessionCode: string, socketId: string, sessionId: string): AttachClientResult {
     const room = this.ensure(sessionCode);
+    if (!room.clientSocketIds.has(socketId) && room.clientSocketIds.size >= MAX_CLIENTS_PER_ROOM) {
+      this.log.warn({ sessionCode, socketId }, 'refused client, room already full');
+      return { ok: false, reason: 'SESSION_FULL' };
+    }
     room.clientSocketIds.add(socketId);
+    room.sessionId = room.sessionId ?? sessionId;
     this.socketToRoom.set(socketId, sessionCode);
+    return { ok: true };
   }
 
   /**
@@ -71,6 +114,9 @@ export class RoomRegistry {
   detach(socketId: string): {
     room: RoomState;
     role: 'host' | 'client';
+    /** True when this was the last peer, so the session can be closed. */
+    emptied: boolean;
+    sessionId: string | null;
   } | null {
     const sessionCode = this.socketToRoom.get(socketId);
     if (!sessionCode) {
@@ -84,6 +130,8 @@ export class RoomRegistry {
     let role: 'host' | 'client';
     if (room.hostSocketId === socketId) {
       room.hostSocketId = null;
+      // The seat stays reserved for the same technician until the room is
+      // torn down, so a reconnect within the session still wins it back.
       role = 'host';
     } else if (room.clientSocketIds.has(socketId)) {
       room.clientSocketIds.delete(socketId);
@@ -92,10 +140,12 @@ export class RoomRegistry {
       // Socket was tracked but no longer present in the room. Best effort.
       return null;
     }
-    if (!room.hostSocketId && room.clientSocketIds.size === 0) {
+    const emptied = !room.hostSocketId && room.clientSocketIds.size === 0;
+    const sessionId = room.sessionId;
+    if (emptied) {
       this.rooms.delete(sessionCode);
     }
-    return { room, role };
+    return { room, role, emptied, sessionId };
   }
 
   /** Resolve the session code a given socket belongs to. */

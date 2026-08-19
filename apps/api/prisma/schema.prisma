@@ -63,6 +63,10 @@ model Session {
   clientName     String?
   startedAt      DateTime?
   endedAt        DateTime?
+  // A PENDING session stops accepting joins after this instant. Without it a
+  // code forwarded over WhatsApp still opened the customer's machine months
+  // later, and scanning the 5-character code space stayed profitable forever.
+  expiresAt      DateTime
   createdAt      DateTime      @default(now())
   updatedAt      DateTime      @updatedAt
   // Free-form environment metadata about the customer (OS, screen, etc).
@@ -71,4 +75,6 @@ model Session {
   @@index([hostUserId])
   @@index([organizationId])
   @@index([status, createdAt])
+  // Drives the sweep that closes sessions nobody ever joined.
+  @@index([status, expiresAt])
 }

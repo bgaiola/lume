@@ -9,6 +9,7 @@ import { registerSocketHandlers } from './handlers';
 import { loadEnv } from './load-env';
 import { createLogger } from './logger';
 import { RoomRegistry } from './rooms';
+import { createSessionReporter } from './session-reporter';
 
 loadEnv();
 
@@ -42,6 +43,11 @@ async function bootstrap(): Promise<void> {
   });
 
   const rooms = new RoomRegistry(log.child({ component: 'rooms' }));
+  const reporter = createSessionReporter(
+    config.apiBaseUrl,
+    config.webhookSecret,
+    log.child({ component: 'session-reporter' }),
+  );
 
   io.use((socket: Socket, next) => {
     try {
@@ -68,7 +74,7 @@ async function bootstrap(): Promise<void> {
 
   io.on('connection', (socket: Socket) => {
     try {
-      registerSocketHandlers(io, socket, rooms, log);
+      registerSocketHandlers(io, socket, rooms, log, reporter);
     } catch (e) {
       log.error(
         { err: e, socketId: socket.id },

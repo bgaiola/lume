@@ -24,7 +24,12 @@ import { env } from '@/lib/env';
 
 interface LiveSessionViewProps {
   sessionCode: string;
-  accessToken: string;
+  /**
+   * Session-scoped credential from `POST /v1/sessions/:code/host-token`.
+   * The account token is not accepted by the signaling service any more:
+   * it proves who you are, not which session you may host.
+   */
+  hostToken: string;
   /** Optional metadata coming from the API (host name, organization). */
   hostName?: string;
   organizationName?: string | null;
@@ -90,7 +95,7 @@ function pickQualityLabel(stats: ConnectionStats): string {
 
 export function LiveSessionView({
   sessionCode,
-  accessToken,
+  hostToken,
   hostName,
   organizationName,
   clientName,
@@ -137,7 +142,7 @@ export function LiveSessionView({
 
     const host = new LumeHost({
       signalingUrl: env.signalingUrl,
-      accessToken,
+      hostToken,
       sessionCode,
       iceServers: ((iceServers ?? DEFAULT_ICE_SERVERS) as RTCIceServer[]),
     });
@@ -172,7 +177,7 @@ export function LiveSessionView({
       host.disconnect('user');
       hostRef.current = null;
     };
-  }, [sessionCode, accessToken, iceServers]);
+  }, [sessionCode, hostToken, iceServers]);
 
   const isConnected = state === 'connected';
   const showVideo = isConnected || state === 'reconnecting';

@@ -1,9 +1,9 @@
 import {
-  accessTokenPayloadSchema,
   joinTokenPayloadSchema,
+  sessionHostTokenPayloadSchema,
   signalingAuthSchema,
-  type AccessTokenPayload,
   type JoinTokenPayload,
+  type SessionHostTokenPayload,
   type SignalingAuth,
 } from '@lume/protocol';
 import jwt from 'jsonwebtoken';
@@ -11,9 +11,9 @@ import jwt from 'jsonwebtoken';
 export interface AuthenticatedHost {
   role: 'host';
   userId: string;
-  email: string;
   organizationId: string | null;
   sessionCode: string;
+  sessionId: string;
 }
 
 export interface AuthenticatedClient {
@@ -21,6 +21,9 @@ export interface AuthenticatedClient {
   sessionId: string;
   sessionCode: string;
 }
+
+/** Every authenticated peer carries the session it is bound to. */
+export type PeerSessionBinding = Pick<AuthenticatedPeer, 'sessionId' | 'sessionCode'>;
 
 export type AuthenticatedPeer = AuthenticatedHost | AuthenticatedClient;
 
@@ -37,10 +40,18 @@ export class SignalingAuthError extends Error {
 /**
  * Validate the Socket.io handshake `auth` payload and verify the bearer JWT.
  *
- * Hosts authenticate with their API access token. The session code they
- * declare in the handshake is trusted because it is unguessable and they
- * just minted it via POST /v1/sessions. Clients authenticate with a
- * short-lived join token issued by POST /v1/sessions/:code/join.
+ * Both roles present a token that names the session inside its signature, and
+ * the declared session code must match it. Nothing from the handshake is
+ * trusted on its own.
+ *
+ * This used to be asymmetric: the client presented a session-scoped join
+ * token, but the host presented a plain API access token and the session code
+ * was taken at face value from the handshake. Since signup is open, anyone
+ * could request a magic link for their own address, get a valid access token
+ * within a minute, declare a stranger's session code, and take over the room.
+ * The real technician was disconnected without notice and the customer kept
+ * sharing their screen, now to the intruder. Hosts therefore present a
+ * dedicated `session-host` token minted by POST /v1/sessions.
  */
 export function authenticatePeer(
   rawAuth: unknown,
@@ -66,20 +77,26 @@ export function authenticatePeer(
   }
 
   if (auth.role === 'host') {
-    const parsed = accessTokenPayloadSchema.safeParse(raw);
-    if (!parsed.success || parsed.data.type !== 'access') {
+    const parsed = sessionHostTokenPayloadSchema.safeParse(raw);
+    if (!parsed.success || parsed.data.type !== 'session-host') {
       throw new SignalingAuthError(
-        'expected an access token for host role',
+        'expected a session-host token for host role',
         'INVALID_TOKEN',
       );
     }
-    const payload: AccessTokenPayload = parsed.data;
+    const payload: SessionHostTokenPayload = parsed.data;
+    if (payload.sessionCode !== auth.sessionCode) {
+      throw new SignalingAuthError(
+        'token session code does not match handshake session code',
+        'INVALID_SESSION',
+      );
+    }
     return {
       role: 'host',
       userId: payload.sub,
-      email: payload.email,
       organizationId: payload.organizationId,
-      sessionCode: auth.sessionCode,
+      sessionCode: payload.sessionCode,
+      sessionId: payload.sessionId,
     };
   }
 

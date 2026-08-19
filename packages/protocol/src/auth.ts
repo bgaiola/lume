@@ -73,3 +73,23 @@ export const joinTokenPayloadSchema = z.object({
   sessionId: cuidSchema,
 });
 export type JoinTokenPayload = z.infer<typeof joinTokenPayloadSchema>;
+
+/**
+ * Short-lived token minted for the technician who owns a session, issued by
+ * `POST /v1/sessions` at creation time.
+ *
+ * This exists because the plain access token says who you are but not which
+ * session you may host. The signaling service used to take the session code
+ * straight from the handshake, so any account could declare any code and take
+ * over a stranger's session. The host token binds the two together: the code
+ * is inside the signature, and the signaling service compares it against the
+ * code declared in the handshake, exactly as it already did for the client.
+ */
+export const sessionHostTokenPayloadSchema = z.object({
+  sub: cuidSchema,
+  type: z.literal('session-host'),
+  sessionCode: z.string(),
+  sessionId: cuidSchema,
+  organizationId: cuidSchema.nullable(),
+});
+export type SessionHostTokenPayload = z.infer<typeof sessionHostTokenPayloadSchema>;

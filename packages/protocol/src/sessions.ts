@@ -58,6 +58,21 @@ export const createSessionRequestSchema = z.object({
 });
 export type CreateSessionRequest = z.infer<typeof createSessionRequestSchema>;
 
+/**
+ * ICE servers (STUN + TURN). Both sides of the call need these: the customer
+ * gets them on join, the technician on create. Handing them only to the
+ * customer left the technician unable to connect from a corporate network
+ * that blocks direct peer traffic, which is exactly where support happens.
+ */
+export const iceServersSchema = z.array(
+  z.object({
+    urls: z.union([z.string(), z.array(z.string())]),
+    username: z.string().optional(),
+    credential: z.string().optional(),
+  }),
+);
+export type IceServers = z.infer<typeof iceServersSchema>;
+
 export const createSessionResponseSchema = z.object({
   session: sessionSchema,
   /**
@@ -65,6 +80,16 @@ export const createSessionResponseSchema = z.object({
    * opens this URL in a browser to start screen sharing.
    */
   joinUrl: z.string().url(),
+  /**
+   * Short-lived JWT that authorises this technician to host THIS session on
+   * the signaling service. The plain access token is no longer accepted there:
+   * it proves identity but not ownership of a session code.
+   */
+  hostToken: z.string(),
+  hostTokenExpiresAt: isoDateStringSchema,
+  /** ICE servers for the technician side of the connection. */
+  iceServers: iceServersSchema,
+  signalingUrl: z.string(),
 });
 export type CreateSessionResponse = z.infer<typeof createSessionResponseSchema>;
 
@@ -102,13 +127,7 @@ export const joinSessionResponseSchema = z.object({
   joinToken: z.string(),
   joinTokenExpiresAt: isoDateStringSchema,
   /** ICE servers (STUN + TURN) the WebRTC client should configure. */
-  iceServers: z.array(
-    z.object({
-      urls: z.union([z.string(), z.array(z.string())]),
-      username: z.string().optional(),
-      credential: z.string().optional(),
-    }),
-  ),
+  iceServers: iceServersSchema,
   signalingUrl: z.string(),
 });
 export type JoinSessionResponse = z.infer<typeof joinSessionResponseSchema>;

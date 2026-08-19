@@ -168,12 +168,35 @@ export class LumeClient extends TypedEmitter<LumeClientEventMap> {
 
     this.socket.on('connect_error', (err) => {
       this.emit('error', { code: 'NETWORK', message: err.message, cause: err });
-      this.disconnect('signaling-error', err.message);
+      // Only an auth failure is final. Everything else is a transport hiccup,
+      // and socket.io is already retrying: ending the session here meant a
+      // three-second Wi-Fi drop forced the customer to start over.
+      // The server sets `err.name` to the SignalingErrorEvent code.
+      if (isFatalSignalingCode(err.name)) {
+        this.disconnect('signaling-error', err.message);
+        return;
+      }
+      this.transition('reconnecting');
+    });
+
+    this.socket.on('disconnect', (reason) => {
+      // 'io server disconnect' and an explicit local close are final; the rest
+      // are transient and socket.io will reconnect on its own.
+      if (this.stopped || reason === 'io client disconnect') {
+        return;
+      }
+      if (reason === 'io server disconnect') {
+        this.disconnect('signaling-error', 'the server closed the connection');
+        return;
+      }
+      this.transition('reconnecting');
     });
 
     this.socket.on(SIGNALING_EVENTS.error, (event: SignalingErrorEvent) => {
       this.emit('error', { code: event.code, message: event.message });
-      this.disconnect('signaling-error', event.message);
+      if (isFatalSignalingCode(event.code)) {
+        this.disconnect('signaling-error', event.message);
+      }
     });
 
     this.socket.on(SIGNALING_EVENTS.peerJoined, (event: PeerJoinedEvent) => {
@@ -323,6 +346,9 @@ export class LumeClient extends TypedEmitter<LumeClientEventMap> {
     if (!parsed.success || !this.peer) {
       return;
     }
+    if (!this.isFromHost(parsed.data.from, 'SDP')) {
+      return;
+    }
     if (parsed.data.description.type !== 'answer') {
       return;
     }
@@ -338,6 +364,9 @@ export class LumeClient extends TypedEmitter<LumeClientEventMap> {
     if (!parsed.success || !parsed.data.candidate || !this.peer) {
       return;
     }
+    if (!this.isFromHost(parsed.data.from, 'ICE')) {
+      return;
+    }
     try {
       await this.peer.addIceCandidate(parsed.data.candidate as RTCIceCandidateInit);
     } catch (err) {
@@ -345,4 +374,34 @@ export class LumeClient extends TypedEmitter<LumeClientEventMap> {
       this.emit('error', { code: 'UNEXPECTED', message: 'addIceCandidate failed', cause: err });
     }
   }
+
+  /**
+   * Accept negotiation traffic only from the technician we are paired with.
+   *
+   * The server stamps `from` with the real socket id, so it cannot be forged;
+   * what was missing was checking it at all. Without this, any other peer in
+   * the room could send an SDP answer and take over the media path, pointing
+   * the customer's screen share at themselves.
+   */
+  private isFromHost(from: string, kind: 'SDP' | 'ICE'): boolean {
+    if (this.hostSocketId && from === this.hostSocketId) {
+      return true;
+    }
+    this.emit('error', {
+      code: 'UNEXPECTED',
+      message: `ignored ${kind} from an unexpected peer`,
+    });
+    return false;
+  }
+
+}
+
+/**
+ * Which signaling failures are worth ending the session over.
+ *
+ * An expired or wrong token, a session that no longer exists, or a room that
+ * is already full will not fix themselves by retrying. A network error will.
+ */
+function isFatalSignalingCode(code: string | undefined): boolean {
+  return code === 'INVALID_TOKEN' || code === 'INVALID_SESSION' || code === 'SESSION_FULL';
 }
