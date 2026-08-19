@@ -30,10 +30,10 @@ jobs:
           set -u
           # Plain "name|url" lines rather than an associative array, so the
           # same script runs on any bash and can be tested outside CI.
-          TARGETS="API|https://lume-api-vjyf.onrender.com/health
-          Signaling|https://lume-signaling.onrender.com/health
-          Panel do tecnico|https://lume-panel.onrender.com
-          App do cliente|https://lume-app-mn6j.onrender.com"
+          TARGETS="API|https://api.lumeapp.es/health
+          Signaling|https://signaling.lumeapp.es/health
+          Panel do tecnico|https://app.lumeapp.es
+          App do cliente|https://lumeapp.es"
 
           failures=""
           echo "$TARGETS" | while read -r line; do :; done   # noop, keeps shellcheck quiet
