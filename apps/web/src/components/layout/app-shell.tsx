@@ -63,7 +63,7 @@ const NAV_GROUPS: NavGroup[] = [
 
 function getInitials(nameOrEmail: string): string {
   const trimmed = nameOrEmail.trim();
-  if (!trimmed) return '?';
+  if (!trimmed) {return '?';}
   if (trimmed.includes('@')) {
     return trimmed[0]!.toUpperCase();
   }

@@ -34,12 +34,12 @@ export class DownloadsController {
    * the bundle pipeline mirrors the binary into apps/api/public.
    */
   @Get('desktop/:platform')
-  desktop(
+  async desktop(
     @Param('platform', new ZodValidationPipe(desktopPlatformSchema))
     platform: DesktopPlatform,
     @Res() res: Response,
-  ): void {
-    const resolution = this.downloads.resolve(platform);
+  ): Promise<void> {
+    const resolution = await this.downloads.resolve(platform);
 
     if (resolution.kind === 'redirect') {
       res.redirect(HttpStatus.FOUND, resolution.url);

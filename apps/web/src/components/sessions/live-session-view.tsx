@@ -2,7 +2,6 @@ import { type JoinSessionResponse } from '@lume/protocol';
 import { LumeHost, type LumePeerState } from '@lume/webrtc';
 import {
   Camera,
-  ChevronsRight,
   Clock,
   Edit3,
   FileDown,
@@ -19,8 +18,8 @@ import {
 } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
-import { cn } from '@/lib/utils';
 import { env } from '@/lib/env';
+import { cn } from '@/lib/utils';
 
 interface LiveSessionViewProps {
   sessionCode: string;
@@ -85,11 +84,11 @@ function formatElapsed(seconds: number): string {
 }
 
 function pickQualityLabel(stats: ConnectionStats): string {
-  if (!stats.height) return '...';
-  if (stats.height >= 2000) return '4K';
-  if (stats.height >= 1400) return 'QHD';
-  if (stats.height >= 1000) return 'Full HD';
-  if (stats.height >= 700) return 'HD';
+  if (!stats.height) {return '...';}
+  if (stats.height >= 2000) {return '4K';}
+  if (stats.height >= 1400) {return 'QHD';}
+  if (stats.height >= 1000) {return 'Full HD';}
+  if (stats.height >= 700) {return 'HD';}
   return 'SD';
 }
 
@@ -185,7 +184,7 @@ export function LiveSessionView({
   // Tick once per second while connected, for the timer. Don't run when
   // disconnected to avoid pointless renders.
   useEffect(() => {
-    if (!connectedAt) return;
+    if (!connectedAt) {return;}
     setNow(Date.now());
     const id = window.setInterval(() => setNow(Date.now()), 1000);
     return () => window.clearInterval(id);
@@ -194,17 +193,17 @@ export function LiveSessionView({
   // Poll RTCPeerConnection.getStats() every 1s while connected. Picks the
   // first peer (Phase 1 only ever has one customer per session).
   useEffect(() => {
-    if (!isConnected) return;
+    if (!isConnected) {return;}
     let cancelled = false;
     let lastFramesDecoded = 0;
     let lastTimestamp = 0;
 
     const tick = async (): Promise<void> => {
       const host = hostRef.current;
-      if (!host) return;
+      if (!host) {return;}
       const pcs = Array.from(host.peerConnections.values());
       const pc = pcs[0];
-      if (!pc) return;
+      if (!pc) {return;}
 
       try {
         const report = await pc.getStats();
@@ -225,17 +224,17 @@ export function LiveSessionView({
             candidates.set(stat.id, { type: stat.candidateType ?? 'host' });
           }
           if (stat.type === 'inbound-rtp' && stat.kind === 'video') {
-            if (typeof stat.frameWidth === 'number') width = stat.frameWidth;
-            if (typeof stat.frameHeight === 'number') height = stat.frameHeight;
-            if (typeof stat.framesDecoded === 'number') framesDecoded = stat.framesDecoded;
-            if (typeof stat.timestamp === 'number') videoTimestamp = stat.timestamp;
+            if (typeof stat.frameWidth === 'number') {width = stat.frameWidth;}
+            if (typeof stat.frameHeight === 'number') {height = stat.frameHeight;}
+            if (typeof stat.framesDecoded === 'number') {framesDecoded = stat.framesDecoded;}
+            if (typeof stat.timestamp === 'number') {videoTimestamp = stat.timestamp;}
           }
         });
 
         report.forEach((stat) => {
-          if (stat.type !== 'candidate-pair') return;
+          if (stat.type !== 'candidate-pair') {return;}
           const isSelected = stat.id === selectedPairId || stat.selected === true || stat.nominated === true;
-          if (!isSelected) return;
+          if (!isSelected) {return;}
           if (typeof stat.currentRoundTripTime === 'number') {
             rttMs = Math.round(stat.currentRoundTripTime * 1000);
           }
@@ -284,8 +283,8 @@ export function LiveSessionView({
   const frameTitle = useMemo(() => {
     const parts: string[] = [];
     parts.push(clientName ?? 'Cliente');
-    if (hostName) parts.push(`con ${hostName}`);
-    if (organizationName) parts.push(organizationName);
+    if (hostName) {parts.push(`con ${hostName}`);}
+    if (organizationName) {parts.push(organizationName);}
     return parts.join(' · ');
   }, [clientName, hostName, organizationName]);
 
@@ -523,11 +522,15 @@ function Toolbar({ isConnected, elapsedLabel }: ToolbarProps): JSX.Element {
       <ToolDivider />
       <ToolButton icon={Clock} title="Time travel (próximamente)" />
       <ToolButton icon={MonitorSmartphone} title="Multimonitor (próximamente)" />
+      {/*
+        Session timer. This used to read "REC" with a red pulsing dot while
+        nothing was being recorded, so the technician believed they had a
+        record of the session and did not. Recording is a Phase 3 feature.
+      */}
       {isConnected && (
-        <div className="ml-auto flex items-center gap-2 rounded-lg border border-danger/30 bg-danger/10 px-3 py-1.5 font-mono text-[11px] text-danger">
-          <ChevronsRight className="h-2.5 w-2.5" aria-hidden />
-          <span className="h-2 w-2 rounded-full bg-danger animate-pulse-soft" aria-hidden />
-          <span>REC, {elapsedLabel}</span>
+        <div className="ml-auto flex items-center gap-2 rounded-lg border border-line bg-surface-elev px-3 py-1.5 font-mono text-[11px] text-ink-secondary">
+          <span className="h-2 w-2 rounded-full bg-lime animate-pulse-soft" aria-hidden />
+          <span>En directo, {elapsedLabel}</span>
         </div>
       )}
     </div>

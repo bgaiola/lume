@@ -17,6 +17,7 @@ import {
 } from 'lucide-react';
 import { useState, type ReactNode } from 'react';
 
+import { CodeEntry } from './code-entry';
 import { LEGAL_LINKS } from './legal';
 import { LumeMark } from './lume-mark';
 
@@ -38,6 +39,15 @@ interface PricingPlan {
   features: { label: string; included: boolean; soon?: boolean }[];
 }
 
+/**
+ * Plans as advertised.
+ *
+ * Anything not built yet carries `soon`. Selling recording, file transfer,
+ * multi-monitor, annotations or a trial that does not exist is misleading
+ * advertising under Ley 3/1991 and the TRLGDCU, and the seller on the hook is
+ * Ardis Software, S.L. Nothing here loses its `soon` flag until the feature
+ * actually ships.
+ */
 const PLANS: PricingPlan[] = [
   {
     name: 'Free',
@@ -61,14 +71,16 @@ const PLANS: PricingPlan[] = [
     priceSuffix: '/usuario/mes',
     tagline: 'Para el técnico que vive en sesiones remotas.',
     highlight: true,
-    cta: 'Probar 14 días gratis',
+    cta: 'Apúntate a la lista',
     features: [
       { label: 'Sesiones ilimitadas', included: true },
-      { label: 'Grabación local + cloud', included: true },
-      { label: 'Multimonitor + transferencia de archivos', included: true },
-      { label: 'Anotaciones sobre la pantalla', included: true },
-      { label: 'Historial e informe por sesión', included: true },
+      { label: 'Historial de sesiones', included: true },
       { label: 'Soporte prioritario por email', included: true },
+      { label: 'Control del teclado y el ratón', included: true, soon: true },
+      { label: 'Multimonitor', included: true, soon: true },
+      { label: 'Transferencia de archivos', included: true, soon: true },
+      { label: 'Grabación de sesiones', included: true, soon: true },
+      { label: 'Anotaciones sobre la pantalla', included: true, soon: true },
     ],
   },
   {
@@ -234,12 +246,15 @@ function Hero(): JSX.Element {
             </span>
             <span className="flex items-center gap-1.5">
               <Check className="h-3.5 w-3.5 text-lime" aria-hidden />
-              Cancela en un click
+              Cifrado extremo a extremo
             </span>
             <span className="flex items-center gap-1.5">
               <Check className="h-3.5 w-3.5 text-lime" aria-hidden />
-              Código abierto en GitHub
+              Hecho en España
             </span>
+          </div>
+          <div className="max-w-md border-t border-line pt-6">
+            <CodeEntry />
           </div>
         </div>
         <HeroPanel />
@@ -551,7 +566,7 @@ function Pricing(): JSX.Element {
       <SectionHeading
         eyebrow="Precios"
         title="La mitad que TeamViewer. Sin permanencia."
-        subtitle="Precios por usuario. IVA no incluido. Cancela en un click cuando quieras."
+        subtitle="Precios por usuario y mes, IVA no incluido. Lo marcado como próximamente todavía no está disponible."
       />
       <div className="mt-12 grid gap-5 lg:grid-cols-3">
         {PLANS.map((plan) => (

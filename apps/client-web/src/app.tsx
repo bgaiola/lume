@@ -15,6 +15,7 @@ import { InvalidCodeScreen } from './components/invalid-code-screen';
 import { LandingPage } from './components/landing-page';
 import { LegalDocPage, resolveLegalDoc } from './components/legal';
 import { SharingScreen } from './components/sharing-screen';
+import { canShareScreen, UnsupportedBrowserScreen } from './components/unsupported-browser-screen';
 import { WelcomeScreen } from './components/welcome-screen';
 
 import { ApiClientError, fetchSessionInfo, joinSession } from '@/lib/api';
@@ -22,6 +23,7 @@ import { env } from '@/lib/env';
 
 type AppState =
   | { kind: 'landing' }
+  | { kind: 'unsupported' }
   | { kind: 'loading-info' }
   | { kind: 'invalid-code'; message?: string }
   | { kind: 'welcome'; info: SessionInfoResponse; isStarting: boolean; errorMessage?: string }
@@ -42,6 +44,9 @@ export function App() {
   );
   const debugEnabled = useMemo(() => isDebugEnabled(), []);
   const [activeClient, setActiveClient] = useState<LumeClient | null>(null);
+  // Bumped by the retry buttons to re-run the session lookup without a
+  // full page reload, which would lose the screen-share permission prompt.
+  const [attempt, setAttempt] = useState(0);
   const [state, setState] = useState<AppState>(() => {
     if (!hasPath) {
       return { kind: 'landing' };
@@ -49,12 +54,26 @@ export function App() {
     if (code === null) {
       return { kind: 'invalid-code', message: 'El enlace no contiene un código válido.' };
     }
+    // Checked before anything else: on a phone the whole flow is impossible,
+    // and letting the customer reach the share button just produces a
+    // failure they cannot act on.
+    if (!canShareScreen()) {
+      return { kind: 'unsupported' };
+    }
     return { kind: 'loading-info' };
   });
+
+  const retry = (): void => {
+    if (code === null) {
+      return;
+    }
+    setState({ kind: 'loading-info' });
+    setAttempt((n) => n + 1);
+  };
   const clientRef = useRef<LumeClient | null>(null);
 
   useEffect(() => {
-    if (!code) {
+    if (!code || !canShareScreen()) {
       return;
     }
     let cancelled = false;
@@ -69,14 +88,12 @@ export function App() {
         if (cancelled) {
           return;
         }
-        const message =
-          err instanceof ApiClientError ? err.message : 'No se ha podido cargar la sesión.';
-        setState({ kind: 'invalid-code', message });
+        setState({ kind: 'invalid-code', message: customerMessage(err) });
       });
     return () => {
       cancelled = true;
     };
-  }, [code]);
+  }, [code, attempt]);
 
   useEffect(() => {
     return () => {
@@ -108,9 +125,7 @@ export function App() {
       joinResponse = await joinSession(info.code, {});
     } catch (err) {
       stream.getTracks().forEach((t) => t.stop());
-      const message =
-        err instanceof ApiClientError ? err.message : 'No se ha podido unir a la sesión.';
-      setState({ kind: 'welcome', info, isStarting: false, errorMessage: message });
+      setState({ kind: 'welcome', info, isStarting: false, errorMessage: customerMessage(err) });
       return;
     }
 
@@ -162,8 +177,12 @@ export function App() {
     );
   }
 
+  if (state.kind === 'unsupported') {
+    return <UnsupportedBrowserScreen code={code ?? ''} />;
+  }
+
   if (state.kind === 'invalid-code') {
-    return <InvalidCodeScreen message={state.message} />;
+    return <InvalidCodeScreen message={state.message} onRetry={code ? retry : undefined} />;
   }
 
   if (state.kind === 'welcome') {
@@ -186,7 +205,22 @@ export function App() {
     );
   }
 
-  return <EndScreen reason={state.reason} message={state.message} />;
+  return <EndScreen reason={state.reason} message={state.message} onRetry={retry} />;
+}
+
+/**
+ * Message to show the customer for a failure coming out of `lib/api`.
+ *
+ * Everything that layer throws is already written for a non-technical Spanish
+ * speaker, so the previous behaviour of replacing it with a generic line threw
+ * away the useful half ("pide otro enlace", "espera un minuto"). The fallback
+ * only catches genuinely unexpected throws.
+ */
+function customerMessage(err: unknown): string {
+  if (err instanceof ApiClientError || err instanceof Error) {
+    return err.message;
+  }
+  return 'No se ha podido cargar la sesión. Vuelve a intentarlo.';
 }
 
 /**
