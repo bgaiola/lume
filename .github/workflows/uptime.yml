@@ -1,0 +1,115 @@
+# Checks that Lume is actually answering, and opens an issue when it is not.
+#
+# Exists because the previous outage went unnoticed: production was a laptop
+# behind a tunnel, and when it went away nothing and nobody said so. GitHub
+# emails the repo owner on a new issue, so this is a free alert channel with
+# no extra account to manage.
+#
+# Free Render services sleep after 15 minutes idle and take about a minute to
+# wake, so the checks allow a generous timeout and retry before crying wolf.
+# A side effect is that this keeps the services warm during the working day.
+name: uptime
+
+on:
+  schedule:
+    # Every 15 minutes. GitHub may delay scheduled runs under load; this is a
+    # safety net, not a monitoring product.
+    - cron: '*/15 * * * *'
+  workflow_dispatch:
+
+permissions:
+  issues: write
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Probe every public endpoint
+        id: probe
+        run: |
+          set -u
+          # Plain "name|url" lines rather than an associative array, so the
+          # same script runs on any bash and can be tested outside CI.
+          TARGETS="API|https://lume-api-vjyf.onrender.com/health
+          Signaling|https://lume-signaling.onrender.com/health
+          Panel do tecnico|https://lume-panel.onrender.com
+          App do cliente|https://lume-app-mn6j.onrender.com"
+
+          failures=""
+          echo "$TARGETS" | while read -r line; do :; done   # noop, keeps shellcheck quiet
+          while IFS='|' read -r name url; do
+            name=$(echo "$name" | sed 's/^ *//;s/ *$//')
+            url=$(echo "$url" | sed 's/^ *//;s/ *$//')
+            [ -z "$url" ] && continue
+            code="000"
+            # Three attempts: a cold free instance needs about a minute, and a
+            # single slow response is not an outage.
+            for attempt in 1 2 3; do
+              code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 90 "$url" || echo "000")
+              [ "$code" = "200" ] && break
+              sleep 15
+            done
+            if [ "$code" = "200" ]; then
+              echo "OK    $name ($url)"
+            else
+              echo "FALHA $name ($url) -> HTTP $code"
+              printf -- '- **%s**: `%s` respondeu `%s`\n' "$name" "$url" "$code" >> failures.txt
+            fi
+          done <<< "$TARGETS"
+
+          if [ -s failures.txt ]; then
+            {
+              echo "failures<<ENDOFLIST"
+              cat failures.txt
+              echo "ENDOFLIST"
+            } >> "$GITHUB_OUTPUT"
+            exit 1
+          fi
+
+      - name: Open an issue when something is down
+        if: failure()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const body = `${{ steps.probe.outputs.failures }}
+            Verificado em ${new Date().toISOString()}.
+
+            [Ver a execução](${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId})`;
+            const title = 'Lume está fora do ar';
+            // Reuse the open issue instead of filing one every 15 minutes.
+            const { data: open } = await github.rest.issues.listForRepo({
+              owner: context.repo.owner, repo: context.repo.repo,
+              state: 'open', labels: 'uptime',
+            });
+            if (open.length > 0) {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner, repo: context.repo.repo,
+                issue_number: open[0].number, body,
+              });
+            } else {
+              await github.rest.issues.create({
+                owner: context.repo.owner, repo: context.repo.repo,
+                title, body, labels: ['uptime'],
+              });
+            }
+
+      - name: Close the issue once everything answers again
+        if: success()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const { data: open } = await github.rest.issues.listForRepo({
+              owner: context.repo.owner, repo: context.repo.repo,
+              state: 'open', labels: 'uptime',
+            });
+            for (const issue of open) {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner, repo: context.repo.repo,
+                issue_number: issue.number,
+                body: `Tudo respondendo de novo em ${new Date().toISOString()}.`,
+              });
+              await github.rest.issues.update({
+                owner: context.repo.owner, repo: context.repo.repo,
+                issue_number: issue.number, state: 'closed',
+              });
+            }

@@ -1,0 +1,57 @@
+# Daily dump of the production database, kept as a workflow artifact.
+#
+# The free Postgres on Render is deleted 30 days after creation, and even a
+# paid one has no protection against a bad migration. This is the copy that
+# makes both survivable. It is deliberately boring: pg_dump, gzip, upload.
+#
+# Requires one repository secret:
+#   DATABASE_URL_BACKUP  the EXTERNAL connection string of the database
+#                        (Render dashboard -> lume-db -> Connections)
+#
+# To restore:
+#   gunzip -c lume-YYYY-MM-DD.sql.gz | psql "<connection string>"
+name: db-backup
+
+on:
+  schedule:
+    # 03:15 UTC daily, outside Spanish working hours.
+    - cron: '15 3 * * *'
+  workflow_dispatch:
+
+jobs:
+  dump:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Install a pg_dump matching the server
+        run: |
+          sudo sh -c 'echo "deb https://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" > /etc/apt/sources.list.d/pgdg.list'
+          curl -fsSL https://www.postgresql.org/media/keys/ACCC4CF8.asc | sudo gpg --dearmor -o /usr/share/keyrings/pgdg.gpg
+          sudo sed -i 's|deb |deb [signed-by=/usr/share/keyrings/pgdg.gpg] |' /etc/apt/sources.list.d/pgdg.list
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq postgresql-client-16
+
+      - name: Dump
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL_BACKUP }}
+        run: |
+          if [ -z "${DATABASE_URL}" ]; then
+            echo "DATABASE_URL_BACKUP não está definido. Adicione o segredo no repositório."
+            exit 1
+          fi
+          name="lume-$(date -u +%Y-%m-%d).sql"
+          pg_dump --no-owner --no-privileges "$DATABASE_URL" > "$name"
+          # A dump that restores nothing is worse than no dump, because it
+          # looks like a backup. Fail loudly if the schema is missing.
+          grep -q 'CREATE TABLE public."Session"' "$name" || {
+            echo "O dump não contém a tabela Session. Abortando."; exit 1; }
+          gzip "$name"
+          ls -lh "$name.gz"
+          echo "ARTIFACT_NAME=$name.gz" >> "$GITHUB_ENV"
+
+      - name: Keep it
+        uses: actions/upload-artifact@v4
+        with:
+          name: lume-db-backup-${{ github.run_number }}
+          path: '*.sql.gz'
+          # GitHub's maximum for a public repository.
+          retention-days: 90
