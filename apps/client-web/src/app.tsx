@@ -7,15 +7,18 @@ import {
 } from '@lume/webrtc';
 import { useEffect, useMemo, useRef, useState } from 'react';
 
-import { ApiClientError, fetchSessionInfo, joinSession } from '@/lib/api';
-import { env } from '@/lib/env';
 
+import { CookieConsentBanner } from './components/cookie-consent-banner';
 import { DebugOverlay } from './components/debug-overlay';
 import { EndScreen } from './components/end-screen';
 import { InvalidCodeScreen } from './components/invalid-code-screen';
 import { LandingPage } from './components/landing-page';
+import { LegalDocPage, resolveLegalDoc } from './components/legal';
 import { SharingScreen } from './components/sharing-screen';
 import { WelcomeScreen } from './components/welcome-screen';
+
+import { ApiClientError, fetchSessionInfo, joinSession } from '@/lib/api';
+import { env } from '@/lib/env';
 
 type AppState =
   | { kind: 'landing' }
@@ -30,7 +33,13 @@ type AppState =
     };
 
 export function App() {
-  const { code, hasPath } = useMemo(() => readCodeFromLocation(), []);
+  // Las rutas legales se resuelven antes que el código de sesión: sin esto,
+  // `/privacidad` se interpretaría como un código y mostraría "enlace no válido".
+  const legalDoc = useMemo(() => resolveLegalDoc(window.location.pathname), []);
+  const { code, hasPath } = useMemo(
+    () => (legalDoc ? { code: null, hasPath: false } : readCodeFromLocation()),
+    [legalDoc],
+  );
   const debugEnabled = useMemo(() => isDebugEnabled(), []);
   const [activeClient, setActiveClient] = useState<LumeClient | null>(null);
   const [state, setState] = useState<AppState>(() => {
@@ -131,8 +140,18 @@ export function App() {
     clientRef.current?.disconnect('user');
   };
 
+  // Se comprueba después de todos los hooks para no romper las Rules of Hooks.
+  if (legalDoc) {
+    return <LegalDocPage doc={legalDoc} />;
+  }
+
   if (state.kind === 'landing') {
-    return <LandingPage />;
+    return (
+      <>
+        <LandingPage />
+        <CookieConsentBanner />
+      </>
+    );
   }
 
   if (state.kind === 'loading-info') {
@@ -186,6 +205,9 @@ function isDebugEnabled(): boolean {
  * Distinguishes the apex (`/` → marketing landing) from a session URL
  * (`/<code>` → share flow). Returns `hasPath: false` only for the
  * apex; any other path tries to be a session code.
+ *
+ * Legal routes (`/aviso-legal`, `/privacidad`, ...) are resolved by
+ * `resolveLegalDoc` before this function ever runs.
  */
 function readCodeFromLocation(): { code: string | null; hasPath: boolean } {
   const segments = window.location.pathname.split('/').filter(Boolean);

@@ -17,10 +17,13 @@ import {
 } from 'lucide-react';
 import { useState, type ReactNode } from 'react';
 
-import { cn } from '@/lib/utils';
-import { env } from '@/lib/env';
-
+import { LEGAL_LINKS } from './legal';
 import { LumeMark } from './lume-mark';
+
+import { COMPANY, formattedAddress } from '@/lib/company';
+import { env } from '@/lib/env';
+import { cn } from '@/lib/utils';
+
 
 const PANEL_URL = 'https://app.lumeapp.es/login';
 const GITHUB_URL = 'https://github.com/bgaiola/lume';
@@ -557,10 +560,26 @@ function Pricing(): JSX.Element {
       </div>
       <p className="mt-8 text-center text-xs text-ink-tertiary">
         ¿Más de 50 técnicos? Escríbenos a{' '}
-        <a className="text-lime hover:underline" href="mailto:hello@lumeapp.es">
-          hello@lumeapp.es
+        <a className="text-lime hover:underline" href={`mailto:${COMPANY.supportEmail}`}>
+          {COMPANY.supportEmail}
         </a>{' '}
         para un plan Enterprise.
+      </p>
+      {/* En el punto de venta hay que enlazar las condiciones antes de contratar. */}
+      <p className="mt-3 text-center text-xs text-ink-tertiary">
+        Al contratar aceptas las{' '}
+        <a className="text-lime hover:underline" href="/condiciones">
+          condiciones de contratación
+        </a>
+        , la{' '}
+        <a className="text-lime hover:underline" href="/privacidad">
+          política de privacidad
+        </a>{' '}
+        y el{' '}
+        <a className="text-lime hover:underline" href="/encargado-tratamiento">
+          contrato de encargado del tratamiento
+        </a>
+        .
       </p>
     </section>
   );
@@ -725,36 +744,76 @@ function FinalCta(): JSX.Element {
 function Footer(): JSX.Element {
   return (
     <footer className="relative border-t border-line bg-surface-deep">
-      <div className="mx-auto flex max-w-6xl flex-col gap-6 px-6 py-10 sm:flex-row sm:items-center sm:justify-between">
-        <div className="flex items-center gap-2.5">
-          <div className="h-6 w-6 rounded-[28%] bg-lime" aria-hidden />
-          <span className="font-display text-lg italic">Lume</span>
-          <span className="font-mono text-[10px] text-ink-tertiary">v0.1.0</span>
+      <div className="mx-auto grid max-w-6xl gap-8 px-6 py-12 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="lg:col-span-2">
+          <div className="flex items-center gap-2.5">
+            <div className="h-6 w-6 rounded-[28%] bg-lime" aria-hidden />
+            <span className="font-display text-lg italic">Lume</span>
+            <span className="font-mono text-[10px] text-ink-tertiary">v0.1.0</span>
+          </div>
+          {/* Datos identificativos exigidos por el art. 10 de la Ley 34/2002 (LSSI-CE). */}
+          <p className="mt-4 max-w-sm text-xs leading-relaxed text-ink-tertiary">
+            {COMPANY.productName} es un servicio de{' '}
+            <a
+              className="text-ink-secondary hover:text-lime"
+              href={COMPANY.website}
+              target="_blank"
+              rel="noreferrer"
+            >
+              {COMPANY.legalName}
+            </a>{' '}
+            ({COMPANY.tradeName}), NIF {COMPANY.taxId}.
+            <br />
+            {formattedAddress()}.
+            <br />
+            <a className="hover:text-lime" href={`mailto:${COMPANY.email}`}>
+              {COMPANY.email}
+            </a>
+          </p>
         </div>
-        <nav className="flex flex-wrap items-center gap-x-5 gap-y-2 text-xs text-ink-tertiary">
-          <a className="hover:text-ink-primary" href="#features">
+
+        <nav aria-label="Producto">
+          <p className="font-mono text-[10px] uppercase tracking-[0.15em] text-ink-tertiary">
             Producto
-          </a>
-          <a className="hover:text-ink-primary" href="#precios">
-            Precios
-          </a>
-          <a className="hover:text-ink-primary" href="#faq">
-            FAQ
-          </a>
-          <a className="hover:text-ink-primary" href={GITHUB_URL} target="_blank" rel="noreferrer">
-            GitHub
-          </a>
-          <a className="hover:text-ink-primary" href="mailto:hello@lumeapp.es">
-            Contacto
-          </a>
-          <a className="hover:text-ink-primary" href={PANEL_URL}>
-            Iniciar sesión
-          </a>
+          </p>
+          <div className="mt-4 flex flex-col gap-2.5 text-xs text-ink-tertiary">
+            <a className="hover:text-ink-primary" href="#features">
+              Funcionalidades
+            </a>
+            <a className="hover:text-ink-primary" href="#precios">
+              Precios
+            </a>
+            <a className="hover:text-ink-primary" href="#faq">
+              Preguntas frecuentes
+            </a>
+            <a className="hover:text-ink-primary" href={GITHUB_URL} target="_blank" rel="noreferrer">
+              GitHub
+            </a>
+            <a className="hover:text-ink-primary" href={PANEL_URL}>
+              Iniciar sesión
+            </a>
+          </div>
+        </nav>
+
+        <nav aria-label="Legal">
+          <p className="font-mono text-[10px] uppercase tracking-[0.15em] text-ink-tertiary">
+            Legal
+          </p>
+          <div className="mt-4 flex flex-col gap-2.5 text-xs text-ink-tertiary">
+            {LEGAL_LINKS.map((l) => (
+              <a key={l.slug} className="hover:text-ink-primary" href={`/${l.slug}`}>
+                {l.label}
+              </a>
+            ))}
+            <a className="hover:text-ink-primary" href={`mailto:${COMPANY.supportEmail}`}>
+              Contacto y soporte
+            </a>
+          </div>
         </nav>
       </div>
       <div className="border-t border-line/60">
         <p className="mx-auto max-w-6xl px-6 py-5 text-center font-mono text-[10px] text-ink-tertiary">
-          © 2026 Lume · hecho en España con cariño · cifrado WebRTC sobre Cloudflare Calls
+          © 2026 {COMPANY.legalName} · hecho en España · cifrado WebRTC sobre Cloudflare Calls
         </p>
       </div>
     </footer>

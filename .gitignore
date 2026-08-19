@@ -77,3 +77,6 @@ infrastructure/docker/data/
 # the desktop bundle output, the waitlist is per-machine and not committed.
 apps/api/public/downloads/
 apps/api/data/
+
+# Playwright MCP scratch output
+.playwright-mcp/
